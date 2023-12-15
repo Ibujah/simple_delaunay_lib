@@ -9,9 +9,9 @@ use svg::node::element::Path;
 use svg::node::element::Rectangle;
 use svg::Document;
 
-use delaunay_lib::algorithm::delaunay_2d::delaunay_struct_2d;
-use delaunay_lib::algorithm::delaunay_2d::geometry_operations_2d::build_hilbert_curve;
-use delaunay_lib::algorithm::delaunay_2d::simplicial_struct_2d::Node;
+use delaunay_lib::delaunay::delaunay_2d::delaunay_struct_2d;
+use delaunay_lib::delaunay::delaunay_2d::geometry_operations_2d::build_hilbert_curve;
+use delaunay_lib::delaunay::delaunay_2d::simplicial_struct_2d::Node;
 
 pub fn draw_triangle(document: Document, pts: &[Vector2<f32>; 3]) -> Document {
     let [pt0, pt1, pt2] = pts;

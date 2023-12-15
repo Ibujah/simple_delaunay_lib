@@ -14,6 +14,18 @@ impl Node {
             (_, _) => false,
         }
     }
+
+    pub fn print(&self) -> () {
+        match self {
+            Node::Infinity => print!("Node Infinity"),
+            Node::Value(val) => print!("Node {}", val),
+        }
+    }
+
+    pub fn println(&self) -> () {
+        self.print();
+        println!("");
+    }
 }
 
 /// 2D Simplicial structure
@@ -75,6 +87,10 @@ impl SimplicialStructure2D {
         }
     }
 
+    pub fn get_nb_triangles(&self) -> usize {
+        self.nb_triangles
+    }
+
     fn insert_triangle(&mut self, nod1: Node, nod2: Node, nod3: Node) -> (usize, usize, usize) {
         let ind_first = self.halfedge_nodes.len();
         self.halfedge_nodes.push([nod1, nod2]);
@@ -94,8 +110,8 @@ impl SimplicialStructure2D {
     ) -> (usize, usize, usize) {
         let ind_first = ind_tri * 3;
         self.halfedge_nodes[ind_first] = [nod1, nod2];
-        self.halfedge_nodes[ind_first] = [nod2, nod3];
-        self.halfedge_nodes[ind_first] = [nod3, nod1];
+        self.halfedge_nodes[ind_first + 1] = [nod2, nod3];
+        self.halfedge_nodes[ind_first + 2] = [nod3, nod1];
 
         (ind_first, ind_first + 1, ind_first + 2)
     }
@@ -275,6 +291,16 @@ impl<'a> IterHalfEdge<'a> {
         self.ind_halfedge
     }
 
+    /// First node
+    pub fn first_node(&self) -> Node {
+        self.simplicial.halfedge_nodes[self.ind_halfedge][0]
+    }
+
+    /// Last node
+    pub fn last_node(&self) -> Node {
+        self.simplicial.halfedge_nodes[self.ind_halfedge][1]
+    }
+
     /// Gets both nodes iterator
     pub fn nodes(&self) -> [Node; 2] {
         self.simplicial.halfedge_nodes[self.ind_halfedge]
@@ -339,18 +365,17 @@ impl<'a> IterHalfEdge<'a> {
         let mut valid = true;
 
         if !he_next.nodes()[0].equals(&last_node) {
+            self.print();
             println!(": Wrong next halfedge");
             valid = false;
         }
         if !he_prev.nodes()[1].equals(&first_node) {
+            self.print();
             println!(": Wrong previous halfedge");
             valid = false;
         }
-        if !he_opp.nodes()[0].equals(&last_node) {
-            println!(": Wrong opposite halfedge");
-            valid = false;
-        }
-        if !he_opp.nodes()[1].equals(&first_node) {
+        if !he_opp.nodes()[0].equals(&last_node) || !he_opp.nodes()[1].equals(&first_node) {
+            self.print();
             println!(": Wrong opposite halfedge");
             valid = false;
         }
@@ -358,17 +383,17 @@ impl<'a> IterHalfEdge<'a> {
         valid
     }
 
-    // pub fn print(&self) -> () {
-    //     print!("Edge {}: ", self.ind());
-    //     self.first_node().print();
-    //     print!(" -> ");
-    //     self.last_node().print();
-    // }
+    pub fn print(&self) -> () {
+        print!("Edge {}: ", self.ind());
+        self.first_node().print();
+        print!(" -> ");
+        self.last_node().print();
+    }
 
-    // pub fn println(&self) -> () {
-    //     self.print();
-    //     println!("");
-    // }
+    pub fn println(&self) -> () {
+        self.print();
+        println!("");
+    }
 }
 
 impl<'a> IterTriangle<'a> {
@@ -379,24 +404,18 @@ impl<'a> IterTriangle<'a> {
 
     /// Surrounding halfedges (array of halfedge iterators)
     pub fn halfedges(&self) -> [IterHalfEdge<'a>; 3] {
-        let &triangle = self
-            .simplicial
-            .triangle_halfedges
-            .get(&self.ind_triangle)
-            .unwrap();
-
         [
             IterHalfEdge {
                 simplicial: self.simplicial,
-                ind_halfedge: triangle[0],
+                ind_halfedge: self.ind_triangle * 3,
             },
             IterHalfEdge {
                 simplicial: self.simplicial,
-                ind_halfedge: triangle[1],
+                ind_halfedge: self.ind_triangle * 3 + 1,
             },
             IterHalfEdge {
                 simplicial: self.simplicial,
-                ind_halfedge: triangle[2],
+                ind_halfedge: self.ind_triangle * 3 + 2,
             },
         ]
     }
