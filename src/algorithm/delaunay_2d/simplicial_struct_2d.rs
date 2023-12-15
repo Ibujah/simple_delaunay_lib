@@ -1,5 +1,5 @@
 use anyhow::Result;
-use std::collections::{HashMap, HashSet};
+use std::collections::HashSet;
 
 #[derive(Copy, Clone)]
 pub enum Node {
@@ -19,25 +19,13 @@ impl Node {
 
 /// 2D Simplicial structure
 pub struct SimplicialStructure2D {
-    node_halfedges: HashMap<usize, HashSet<usize>>,
-    inf_halfedges: HashSet<usize>,
+    halfedge_nodes: Vec<[Node; 2]>,
+    halfedge_opposite: Vec<usize>,
+    halfedge_next: Vec<usize>,
+    halfedge_prev: Vec<usize>,
+    halfedge_triangle: Vec<usize>,
 
-    halfedge_nodes: HashMap<usize, [Node; 2]>,
-    halfedge_opposite: HashMap<usize, usize>,
-    halfedge_next: HashMap<usize, usize>,
-    halfedge_prev: HashMap<usize, usize>,
-    halfedge_triangle: HashMap<usize, usize>,
-    ind_new_halfedge: usize,
-
-    triangle_halfedges: HashMap<usize, [usize; 3]>,
-    ind_new_triangle: usize,
-}
-
-#[derive(Copy, Clone)]
-/// Node iterator
-pub struct IterNode<'a> {
-    simplicial: &'a SimplicialStructure2D,
-    ind_node: Node,
+    triangle_halfedges: Vec<[usize; 3]>,
 }
 
 #[derive(Copy, Clone)]
@@ -57,41 +45,18 @@ pub struct IterTriangle<'a> {
 impl SimplicialStructure2D {
     pub fn new() -> SimplicialStructure2D {
         SimplicialStructure2D {
-            node_halfedges: HashMap::new(),
-            inf_halfedges: HashSet::new(),
+            halfedge_nodes: Vec::new(),
+            halfedge_opposite: Vec::new(),
+            halfedge_next: Vec::new(),
+            halfedge_prev: Vec::new(),
+            halfedge_triangle: Vec::new(),
 
-            halfedge_nodes: HashMap::new(),
-            halfedge_opposite: HashMap::new(),
-            halfedge_next: HashMap::new(),
-            halfedge_prev: HashMap::new(),
-            halfedge_triangle: HashMap::new(),
-            ind_new_halfedge: 0,
-
-            triangle_halfedges: HashMap::new(),
-            ind_new_triangle: 0,
-        }
-    }
-
-    pub fn get_node(&self, ind_node: usize) -> Result<IterNode> {
-        if self.node_halfedges.contains_key(&ind_node) {
-            Ok(IterNode {
-                simplicial: self,
-                ind_node: Node::Value(ind_node),
-            })
-        } else {
-            Err(anyhow::Error::msg("Node value not in simplicial"))
-        }
-    }
-
-    pub fn get_node_inf(&self) -> IterNode {
-        IterNode {
-            simplicial: self,
-            ind_node: Node::Infinity,
+            triangle_halfedges: Vec::new(),
         }
     }
 
     pub fn get_halfedge(&self, ind_halfedge: usize) -> Result<IterHalfEdge> {
-        if self.halfedge_nodes.contains_key(&ind_halfedge) {
+        if ind_halfedge < self.halfedge_nodes.len() {
             Ok(IterHalfEdge {
                 simplicial: self,
                 ind_halfedge,
@@ -102,7 +67,7 @@ impl SimplicialStructure2D {
     }
 
     pub fn get_triangle(&self, ind_triangle: usize) -> Result<IterTriangle> {
-        if self.triangle_halfedges.contains_key(&ind_triangle) {
+        if ind_triangle < self.triangle_halfedges.len() {
             Ok(IterTriangle {
                 simplicial: self,
                 ind_triangle,
@@ -110,40 +75,6 @@ impl SimplicialStructure2D {
         } else {
             Err(anyhow::Error::msg("Triangle value not in simplicial"))
         }
-    }
-
-    fn insert_node(&mut self, value: usize) -> Result<()> {
-        if self.node_halfedges.insert(value, HashSet::new()).is_some() {
-            Err(anyhow::Error::msg("Value already exists"))
-        } else {
-            Ok(())
-        }
-    }
-
-    fn insert_halfedge(&mut self, ind_nodes: [Node; 2]) -> usize {
-        let node = IterNode {
-            ind_node: ind_nodes[0],
-            simplicial: self,
-        };
-
-        for he in node.halfedges() {
-            if he.last_node().ind().equals(&ind_nodes[1]) {
-                return he.ind();
-            }
-        }
-
-        if let Node::Value(ind_nod) = ind_nodes[0] {
-            self.node_halfedges
-                .get_mut(&ind_nod)
-                .unwrap()
-                .insert(self.ind_new_halfedge);
-        } else {
-            self.inf_halfedges.insert(self.ind_new_halfedge);
-        }
-
-        self.halfedge_nodes.insert(self.ind_new_halfedge, ind_nodes);
-        self.ind_new_halfedge = self.ind_new_halfedge + 1;
-        self.ind_new_halfedge - 1
     }
 
     fn insert_edge(&mut self, ind_points: [Node; 2]) -> [usize; 2] {
