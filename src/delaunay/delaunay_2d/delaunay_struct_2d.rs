@@ -135,7 +135,7 @@ impl DelaunayStructure2D {
         let node2 = he2.first_node();
         let node3 = he3.first_node();
 
-        match (node1.ind(), node2.ind(), node3.ind()) {
+        match (node1, node2, node3) {
             (
                 simplicial_struct_2d::Node::Infinity,
                 simplicial_struct_2d::Node::Value(ind_v2),
@@ -297,8 +297,8 @@ impl DelaunayStructure2D {
         vert: &[f64; 2],
     ) -> Option<simplicial_struct_2d::IterHalfEdge<'a>> {
         for &he in vec_edg {
-            let ind1 = he.first_node().ind();
-            let ind2 = he.last_node().ind();
+            let ind1 = he.first_node();
+            let ind2 = he.last_node();
             if let (Node::Value(v1), Node::Value(v2)) = (ind1, ind2) {
                 let pt1 = self.vertex_coordinates[v1];
                 let pt2 = self.vertex_coordinates[v2];
@@ -424,7 +424,7 @@ impl DelaunayStructure2D {
         let mut path = Vec::new();
 
         let mut he_cur = he1;
-        let first_node = he1.first_node().ind();
+        let first_node = he1.first_node();
 
         let mut dur_in_circle = 0;
         loop {
@@ -446,7 +446,7 @@ impl DelaunayStructure2D {
                 he_cur = he_opp.next_halfedge();
             } else {
                 path.push(he_cur.ind());
-                if he_cur.last_node().ind().equals(&first_node) {
+                if he_cur.last_node().equals(&first_node) {
                     break;
                 }
                 he_cur = he_cur.next_halfedge();
@@ -501,7 +501,7 @@ impl DelaunayStructure2D {
                     );
                     // let sign = geometry_exact_computation_2d::ccw([pt1, pt2, pt3]);
 
-                    let [ind_tri1, ind_tri2, ind_tri3, ind_tri4] = if sign > 0. {
+                    let [tri1, tri2, tri3, tri4] = if sign > 0. {
                         self.simpl_struct.first_triangle([ind1, ind2, ind3])?
                     } else if sign < 0. {
                         self.simpl_struct.first_triangle([ind1, ind3, ind2])?
@@ -509,6 +509,12 @@ impl DelaunayStructure2D {
                         aligned.push(ind3);
                         continue;
                     };
+
+                    let ind_tri1 = tri1.ind();
+                    let ind_tri2 = tri2.ind();
+                    let ind_tri3 = tri3.ind();
+                    let ind_tri4 = tri4.ind();
+
                     self.add_extended_triangle(ind_tri1)?;
                     self.add_extended_triangle(ind_tri2)?;
                     self.add_extended_triangle(ind_tri3)?;
@@ -547,46 +553,51 @@ impl DelaunayStructure2D {
                 let milli = duration.as_nanos();
                 walk_ms = walk_ms + milli;
 
-                let now = Instant::now();
-                // println!("v1");
-                let (path, tri_to_rem, dur_in_circle) =
-                    self.search_path_surrounding_v0(ind_v, ind_triangle)?;
-                // println!("v2");
+                // let now = Instant::now();
+                // // println!("v1");
                 // let (path, tri_to_rem, dur_in_circle) =
-                //     self.search_path_surrounding(ind_v, ind_triangle)?;
-                let duration = now.elapsed();
-                let milli = duration.as_nanos();
-                surr_path_ms = surr_path_ms + milli;
-                in_circle_ms = in_circle_ms + dur_in_circle;
+                //     self.search_path_surrounding_v0(ind_v, ind_triangle)?;
+                // // println!("v2");
+                // // let (path, tri_to_rem, dur_in_circle) =
+                // //     self.search_path_surrounding(ind_v, ind_triangle)?;
+                // let duration = now.elapsed();
+                // let milli = duration.as_nanos();
+                // surr_path_ms = surr_path_ms + milli;
+                // in_circle_ms = in_circle_ms + dur_in_circle;
 
                 step = step + 1;
 
                 let now = Instant::now();
-                let tri_to_add =
-                    self.simpl_struct
-                        .insert_node_within_path(ind_v, &path, &tri_to_rem)?;
+                self.simpl_struct
+                    .insert_node_within_triangle(ind_v, ind_triangle)?;
+                // let tri_to_add =
+                //     self.simpl_struct
+                //         .insert_node_within_path(ind_v, &path, &tri_to_rem)?;
                 let duration = now.elapsed();
                 let milli = duration.as_nanos();
                 insert_ms = insert_ms + milli;
 
-                let now = Instant::now();
-                //update triangles
-                for &ind_tri in tri_to_rem.iter() {
-                    self.rem_extended_triangle(ind_tri);
-                }
-                for &ind_tri in tri_to_add.iter() {
-                    self.add_extended_triangle(ind_tri)?;
-                }
-                let duration = now.elapsed();
-                let milli = duration.as_nanos();
-                update_ms = update_ms + milli;
-                for tri_added in tri_to_add.iter() {
-                    let tri = self.extended_triangles.get(tri_added).unwrap();
-                    match *tri {
-                        ExtendedTriangle::Triangle(_) => last_added_triangle = *tri_added,
-                        ExtendedTriangle::Segment(_) => (),
-                    }
-                }
+                // if !self.simpl_struct.is_valid()? {
+                //     return Err(anyhow::Error::msg("Simplicial structure not valid anymore"));
+                // }
+                // let now = Instant::now();
+                // //update triangles
+                // for &ind_tri in tri_to_rem.iter() {
+                //     self.rem_extended_triangle(ind_tri);
+                // }
+                // for &ind_tri in tri_to_add.iter() {
+                //     self.add_extended_triangle(ind_tri)?;
+                // }
+                // let duration = now.elapsed();
+                // let milli = duration.as_nanos();
+                // update_ms = update_ms + milli;
+                // for tri_added in tri_to_add.iter() {
+                //     let tri = self.extended_triangles.get(tri_added).unwrap();
+                //     match *tri {
+                //         ExtendedTriangle::Triangle(_) => last_added_triangle = *tri_added,
+                //         ExtendedTriangle::Segment(_) => (),
+                //     }
+                // }
             } else {
                 break;
             }
@@ -600,9 +611,9 @@ impl DelaunayStructure2D {
         println!("Insertions computed in {}ms", insert_ms as f32 / 1e6);
         println!("Circle updates computed in {}ms", update_ms as f32 / 1e6);
 
-        // if !self.simpl_struct.is_valid()? {
-        //     return Err(anyhow::Error::msg("Simplicial structure not valid anymore"));
-        // }
+        if !self.simpl_struct.is_valid()? {
+            return Err(anyhow::Error::msg("Simplicial structure not valid anymore"));
+        }
 
         Ok(())
     }
@@ -618,13 +629,13 @@ impl DelaunayStructure2D {
             .set("fill", "white");
         document = document.add(rect);
 
-        for ind_triangle in self.get_simplicial().get_triangle_indices() {
+        for ind_triangle in 0..self.get_simplicial().get_nb_triangles() {
             let tri = self.get_simplicial().get_triangle(ind_triangle)?;
 
             let [h1, h2, h3] = tri.halfedges();
-            let ind_pt1 = h1.first_node().ind();
-            let ind_pt2 = h2.first_node().ind();
-            let ind_pt3 = h3.first_node().ind();
+            let ind_pt1 = h1.first_node();
+            let ind_pt2 = h2.first_node();
+            let ind_pt3 = h3.first_node();
 
             if let (Node::Value(val1), Node::Value(val2), Node::Value(val3)) =
                 (ind_pt1, ind_pt2, ind_pt3)
@@ -650,7 +661,7 @@ impl DelaunayStructure2D {
             }
         }
 
-        for ind_triangle in self.get_simplicial().get_triangle_indices() {
+        for ind_triangle in 0..self.get_simplicial().get_nb_triangles() {
             let extended_cir = self.get_extended_circle(ind_triangle)?;
             if let ExtendedCircle::Circle(circle) = extended_cir {
                 document = draw_circle(document, &(circle.center * 1000.), circle.radius * 1000.);
