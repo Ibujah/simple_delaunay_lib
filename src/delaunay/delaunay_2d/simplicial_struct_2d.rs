@@ -167,7 +167,7 @@ impl SimplicialStructure2D {
         &mut self,
         node: usize,
         ind_tri: usize,
-    ) -> Result<[IterHalfEdge; 3]> {
+    ) -> Result<[IterTriangle; 3]> {
         if ind_tri > self.nb_triangles {
             return Err(anyhow::Error::msg("Triangle index out of bounds"));
         }
@@ -202,17 +202,17 @@ impl SimplicialStructure2D {
         self.halfedge_opposite.push(h2n);
 
         Ok([
-            IterHalfEdge {
+            IterTriangle {
                 simplicial: self,
-                ind_halfedge: h10,
+                ind_triangle: ind_tri,
             },
-            IterHalfEdge {
+            IterTriangle {
                 simplicial: self,
-                ind_halfedge: h21,
+                ind_triangle: self.nb_triangles - 2,
             },
-            IterHalfEdge {
+            IterTriangle {
                 simplicial: self,
-                ind_halfedge: h20,
+                ind_triangle: self.nb_triangles - 1,
             },
         ])
     }
@@ -282,6 +282,17 @@ impl SimplicialStructure2D {
         }
 
         Ok(valid)
+    }
+
+    pub fn println(&self) -> () {
+        for ind_tri in 0..self.nb_triangles {
+            let tri = IterTriangle {
+                simplicial: self,
+                ind_triangle: ind_tri,
+            };
+            print!("  ");
+            tri.println();
+        }
     }
 }
 
@@ -400,6 +411,14 @@ impl<'a> IterTriangle<'a> {
     /// Gets triangle index
     pub fn ind(&self) -> usize {
         self.ind_triangle
+    }
+
+    pub fn contains_infinity(&self) -> bool {
+        let [he0, he1, he2] = self.halfedges();
+
+        he0.first_node().equals(&Node::Infinity)
+            || he1.first_node().equals(&Node::Infinity)
+            || he2.first_node().equals(&Node::Infinity)
     }
 
     /// Surrounding halfedges (array of halfedge iterators)

@@ -1,7 +1,7 @@
 use anyhow::Result;
 use nalgebra::base::*;
 use robust::{self, Coord};
-use std::collections::{HashMap, HashSet};
+use std::collections::HashSet;
 use std::time::Instant;
 
 use svg::node::element;
@@ -10,7 +10,7 @@ use svg::Document;
 
 use super::geometry_2d::{Circle, ExtendedCircle, Line};
 use super::geometry_operations_2d::{
-    build_hilbert_curve, circle_center_and_radius, line_normal_and_factor,
+    build_hilbert_curve, circle_center_and_radius, is_convex, line_normal_and_factor,
 };
 use super::simplicial_struct_2d::{self, Node, SimplicialStructure2D};
 
@@ -58,7 +58,7 @@ pub struct DelaunayStructure2D {
     simpl_struct: simplicial_struct_2d::SimplicialStructure2D,
     vertex_coordinates: Vec<[f64; 2]>,
     indices_to_insert: Vec<usize>,
-    extended_triangles: HashMap<usize, ExtendedTriangle>,
+    inserted_indices: Vec<usize>,
 }
 
 impl DelaunayStructure2D {
@@ -67,7 +67,7 @@ impl DelaunayStructure2D {
             simpl_struct: simplicial_struct_2d::SimplicialStructure2D::new(),
             vertex_coordinates: Vec::new(),
             indices_to_insert: Vec::new(),
-            extended_triangles: HashMap::new(),
+            inserted_indices: Vec::new(),
         }
     }
 
@@ -94,15 +94,86 @@ impl DelaunayStructure2D {
             .collect()
     }
 
-    pub fn get_extended_triangles(&self) -> &HashMap<usize, ExtendedTriangle> {
-        &self.extended_triangles
+    pub fn get_extended_triangle(&self, ind_triangle: usize) -> Result<ExtendedTriangle> {
+        let triangle = self.simpl_struct.get_triangle(ind_triangle)?;
+        let [he1, he2, he3] = triangle.halfedges();
+
+        let node1 = he1.first_node();
+        let node2 = he2.first_node();
+        let node3 = he3.first_node();
+
+        let ext_tri = match (node1, node2, node3) {
+            (
+                simplicial_struct_2d::Node::Infinity,
+                simplicial_struct_2d::Node::Value(ind_v2),
+                simplicial_struct_2d::Node::Value(ind_v3),
+            ) => {
+                let pt2 = self.vertex_coordinates[ind_v2];
+                let pt3 = self.vertex_coordinates[ind_v3];
+                ExtendedTriangle::Segment([pt2, pt3])
+            }
+            (
+                simplicial_struct_2d::Node::Value(ind_v1),
+                simplicial_struct_2d::Node::Infinity,
+                simplicial_struct_2d::Node::Value(ind_v3),
+            ) => {
+                let pt1 = self.vertex_coordinates[ind_v1];
+                let pt3 = self.vertex_coordinates[ind_v3];
+                ExtendedTriangle::Segment([pt3, pt1])
+            }
+            (
+                simplicial_struct_2d::Node::Value(ind_v1),
+                simplicial_struct_2d::Node::Value(ind_v2),
+                simplicial_struct_2d::Node::Infinity,
+            ) => {
+                let pt1 = self.vertex_coordinates[ind_v1];
+                let pt2 = self.vertex_coordinates[ind_v2];
+                ExtendedTriangle::Segment([pt1, pt2])
+            }
+            (
+                simplicial_struct_2d::Node::Value(ind_v1),
+                simplicial_struct_2d::Node::Value(ind_v2),
+                simplicial_struct_2d::Node::Value(ind_v3),
+            ) => {
+                let pt1 = self.vertex_coordinates[ind_v1];
+                let pt2 = self.vertex_coordinates[ind_v2];
+                let pt3 = self.vertex_coordinates[ind_v3];
+                ExtendedTriangle::Triangle([pt1, pt2, pt3])
+                // let sign = robust::orient2d(
+                //     Coord {
+                //         x: pt1[0],
+                //         y: pt1[1],
+                //     },
+                //     Coord {
+                //         x: pt2[0],
+                //         y: pt2[1],
+                //     },
+                //     Coord {
+                //         x: pt3[0],
+                //         y: pt3[1],
+                //     },
+                // );
+                // // let sign = geometry_exact_computation_2d::ccw([pt1, pt2, pt3]);
+
+                // if sign > 0. {
+                //     ExtendedTriangle::Triangle([pt1, pt2, pt3])
+                // } else if sign < 0. {
+                //     self.simpl_struct.get_triangle(ind_triangle)?.println();
+                //     return Err(anyhow::Error::msg("Misoriented triangle"));
+                // } else {
+                //     return Err(anyhow::Error::msg("Flat triangle"));
+                // }
+            }
+            (_, _, _) => {
+                return Err(anyhow::Error::msg("Case should not happen"));
+            }
+        };
+
+        Ok(ext_tri)
     }
 
     pub fn get_extended_circle(&self, ind: usize) -> Result<ExtendedCircle> {
-        let ext_tri = self
-            .extended_triangles
-            .get(&ind)
-            .ok_or(anyhow::Error::msg("Index not in triangles"))?;
+        let ext_tri = self.get_extended_triangle(ind)?;
 
         let res = match ext_tri {
             ExtendedTriangle::Triangle(tri) => {
@@ -127,114 +198,9 @@ impl DelaunayStructure2D {
         Ok(res)
     }
 
-    fn add_extended_triangle(&mut self, ind_triangle: usize) -> Result<()> {
-        let triangle = self.simpl_struct.get_triangle(ind_triangle)?;
-        let [he1, he2, he3] = triangle.halfedges();
-
-        let node1 = he1.first_node();
-        let node2 = he2.first_node();
-        let node3 = he3.first_node();
-
-        match (node1, node2, node3) {
-            (
-                simplicial_struct_2d::Node::Infinity,
-                simplicial_struct_2d::Node::Value(ind_v2),
-                simplicial_struct_2d::Node::Value(ind_v3),
-            ) => {
-                let pt2 = self.vertex_coordinates[ind_v2];
-                let pt3 = self.vertex_coordinates[ind_v3];
-                if self
-                    .extended_triangles
-                    .insert(ind_triangle, ExtendedTriangle::Segment([pt2, pt3]))
-                    .is_some()
-                {
-                    return Err(anyhow::Error::msg("Triangle index already exists"));
-                }
-            }
-            (
-                simplicial_struct_2d::Node::Value(ind_v1),
-                simplicial_struct_2d::Node::Infinity,
-                simplicial_struct_2d::Node::Value(ind_v3),
-            ) => {
-                let pt1 = self.vertex_coordinates[ind_v1];
-                let pt3 = self.vertex_coordinates[ind_v3];
-                if self
-                    .extended_triangles
-                    .insert(ind_triangle, ExtendedTriangle::Segment([pt3, pt1]))
-                    .is_some()
-                {
-                    return Err(anyhow::Error::msg("Triangle index already exists"));
-                }
-            }
-            (
-                simplicial_struct_2d::Node::Value(ind_v1),
-                simplicial_struct_2d::Node::Value(ind_v2),
-                simplicial_struct_2d::Node::Infinity,
-            ) => {
-                let pt1 = self.vertex_coordinates[ind_v1];
-                let pt2 = self.vertex_coordinates[ind_v2];
-                if self
-                    .extended_triangles
-                    .insert(ind_triangle, ExtendedTriangle::Segment([pt1, pt2]))
-                    .is_some()
-                {
-                    return Err(anyhow::Error::msg("Triangle index already exists"));
-                }
-            }
-            (
-                simplicial_struct_2d::Node::Value(ind_v1),
-                simplicial_struct_2d::Node::Value(ind_v2),
-                simplicial_struct_2d::Node::Value(ind_v3),
-            ) => {
-                let pt1 = self.vertex_coordinates[ind_v1];
-                let pt2 = self.vertex_coordinates[ind_v2];
-                let pt3 = self.vertex_coordinates[ind_v3];
-                let sign = robust::orient2d(
-                    Coord {
-                        x: pt1[0],
-                        y: pt1[1],
-                    },
-                    Coord {
-                        x: pt2[0],
-                        y: pt2[1],
-                    },
-                    Coord {
-                        x: pt3[0],
-                        y: pt3[1],
-                    },
-                );
-                // let sign = geometry_exact_computation_2d::ccw([pt1, pt2, pt3]);
-
-                if sign > 0. {
-                    if self
-                        .extended_triangles
-                        .insert(ind_triangle, ExtendedTriangle::Triangle([pt1, pt2, pt3]))
-                        .is_some()
-                    {
-                        return Err(anyhow::Error::msg("Triangle index already exists"));
-                    }
-                } else if sign < 0. {
-                    self.simpl_struct.get_triangle(ind_triangle)?.println();
-                    return Err(anyhow::Error::msg("Misoriented triangle"));
-                } else {
-                    return Err(anyhow::Error::msg("Flat triangle"));
-                }
-            }
-            (_, _, _) => {
-                return Err(anyhow::Error::msg("Case should not happen"));
-            }
-        }
-
-        Ok(())
-    }
-
-    fn rem_extended_triangle(&mut self, ind_triangle: usize) -> () {
-        self.extended_triangles.remove(&ind_triangle);
-    }
-
-    fn is_vertex_in_circle(&self, ind_vert: usize, ind_tri: usize) -> bool {
+    fn is_vertex_in_circle(&self, ind_vert: usize, ind_tri: usize) -> Result<i8> {
         let vert = self.vertex_coordinates[ind_vert];
-        let ext_tri = self.extended_triangles.get(&ind_tri).unwrap();
+        let ext_tri = self.get_extended_triangle(ind_tri)?;
 
         let in_circle = match ext_tri {
             ExtendedTriangle::Triangle(tri) => {
@@ -257,7 +223,13 @@ impl DelaunayStructure2D {
                         y: vert[1],
                     },
                 );
-                sign >= 0.
+                if sign > 0. {
+                    1
+                } else if sign < 0. {
+                    -1
+                } else {
+                    0
+                }
             }
             ExtendedTriangle::Segment(lin) => {
                 let sign = robust::orient2d(
@@ -276,19 +248,51 @@ impl DelaunayStructure2D {
                 );
                 // let sign = geometry_exact_computation_2d::ccw([lin[0], lin[1], vert]);
 
-                if sign == 0. {
+                if sign > 0. {
+                    1
+                } else if sign < 0. {
+                    -1
+                } else {
                     let [[x1, y1], [x2, y2]] = lin;
                     let [x, y] = vert;
                     let scal1 = (x2 - x1) * (x - x1) + (y2 - y1) * (y - y1);
                     let scal2 = (x1 - x2) * (x - x2) + (y1 - y2) * (y - y2);
 
-                    scal1 > 0.0 && scal2 > 0.0
-                } else {
-                    sign > 0.
+                    if scal1 > 0.0 && scal2 > 0.0 {
+                        0
+                    } else {
+                        -1
+                    }
                 }
             }
         };
-        in_circle
+        Ok(in_circle)
+    }
+
+    fn is_triangle_flat(&self, ind_tri: usize) -> Result<bool> {
+        let ext_tri = self.get_extended_triangle(ind_tri)?;
+
+        let flat = if let ExtendedTriangle::Triangle(tri) = ext_tri {
+            //let sign = geometry_exact_computation_2d::incircle(*tri, vert);
+            let sign = robust::orient2d(
+                Coord {
+                    x: tri[0][0],
+                    y: tri[0][1],
+                },
+                Coord {
+                    x: tri[1][0],
+                    y: tri[1][1],
+                },
+                Coord {
+                    x: tri[2][0],
+                    y: tri[2][1],
+                },
+            );
+            sign == 0.
+        } else {
+            false
+        };
+        Ok(flat)
     }
 
     fn choose_he<'a>(
@@ -355,105 +359,53 @@ impl DelaunayStructure2D {
         }
     }
 
-    fn search_path_surrounding_v0(
-        &self,
-        ind_vert: usize,
-        ind_triangle: usize,
-    ) -> Result<(Vec<usize>, HashSet<usize>, u128)> {
-        if !self.is_vertex_in_circle(ind_vert, ind_triangle) {
-            return Err(anyhow::Error::msg("Vertex not in circle"));
-        }
-        let [he1, he2, he3] = self.simpl_struct.get_triangle(ind_triangle)?.halfedges();
-        let mut tri_to_rem = HashSet::new();
-        tri_to_rem.insert(ind_triangle);
-        let mut path = Vec::new();
+    fn should_flip_halfedge(&self, ind_he: usize) -> Result<bool> {
+        let he = self.simpl_struct.get_halfedge(ind_he)?;
+        let ind_tri_abd = he.face().ind();
+        let node_a = he.prev_halfedge().first_node();
+        let node_b = he.first_node();
 
-        let mut he_to_analyse = vec![he1, he2, he3];
+        let ind_tri_bcd = he.opposite_halfedge().face().ind();
+        let node_c = he.opposite_halfedge().prev_halfedge().first_node();
+        let node_d = he.opposite_halfedge().first_node();
 
-        let mut dur_in_circle = 0;
-        loop {
-            if let Some(he) = he_to_analyse.pop() {
-                let he_opp = he.opposite_halfedge();
-                let tri_opp = he_opp.face();
-                let now = Instant::now();
-                let in_circle = self.is_vertex_in_circle(ind_vert, tri_opp.ind());
-                let duration = now.elapsed();
-                let nano = duration.as_nanos();
-                dur_in_circle = dur_in_circle + nano;
-                if in_circle {
-                    if !tri_to_rem.contains(&tri_opp.ind()) {
-                        tri_to_rem.insert(tri_opp.ind());
-                        he_to_analyse.push(he_opp.next_halfedge());
-                        he_to_analyse.push(he_opp.prev_halfedge());
-                    }
-                } else {
-                    // let ind1 = he.first_node().ind();
-                    // let ind2 = he.last_node().ind();
-                    // if let (Node::Value(v1), Node::Value(v2)) = (ind1, ind2) {
-                    //     let vert1 = self.vertex_coordinates[v1];
-                    //     let vert2 = self.vertex_coordinates[v2];
-                    //     let vert = self.vertex_coordinates[ind_vert];
-                    //     let sign = geometry_exact_computation_2d::ccw(&[vert1, vert2, vert]);
-
-                    //     if sign < 0 {
-                    //         return Err(anyhow::Error::msg("Misoriented triangle"));
-                    //     } else if sign == 0 {
-                    //         return Err(anyhow::Error::msg("Flat triangle"));
-                    //     }
-                    // }
-                    path.push(he.ind());
-                }
-            } else {
-                break;
+        match (node_a, node_b, node_c, node_d) {
+            (Node::Value(ind_node_a), Node::Value(_), Node::Value(ind_node_c), Node::Value(_)) => {
+                Ok(self.is_vertex_in_circle(ind_node_c, ind_tri_abd)? == 1
+                    || self.is_vertex_in_circle(ind_node_a, ind_tri_bcd)? == 1)
             }
-        }
-
-        Ok((path, tri_to_rem, dur_in_circle))
-    }
-
-    fn search_path_surrounding(
-        &self,
-        ind_vert: usize,
-        ind_triangle: usize,
-    ) -> Result<(Vec<usize>, HashSet<usize>, u128)> {
-        if !self.is_vertex_in_circle(ind_vert, ind_triangle) {
-            return Err(anyhow::Error::msg("Vertex not in circle"));
-        }
-        let [he1, _, _] = self.simpl_struct.get_triangle(ind_triangle)?.halfedges();
-        let mut tri_to_rem = HashSet::new();
-        let mut path = Vec::new();
-
-        let mut he_cur = he1;
-        let first_node = he1.first_node();
-
-        let mut dur_in_circle = 0;
-        loop {
-            let tri_cur = he_cur.face().ind();
-            tri_to_rem.insert(tri_cur);
-            let he_opp = he_cur.opposite_halfedge();
-            let tri_opp = he_opp.face();
-
-            let now = Instant::now();
-            let in_circle = if tri_to_rem.contains(&tri_opp.ind()) {
-                true
-            } else {
-                self.is_vertex_in_circle(ind_vert, tri_opp.ind())
-            };
-            let duration = now.elapsed();
-            let nano = duration.as_nanos();
-            dur_in_circle = dur_in_circle + nano;
-            if in_circle {
-                he_cur = he_opp.next_halfedge();
-            } else {
-                path.push(he_cur.ind());
-                if he_cur.last_node().equals(&first_node) {
-                    break;
-                }
-                he_cur = he_cur.next_halfedge();
+            (Node::Infinity, Node::Value(_), Node::Value(ind_node_c), Node::Value(_)) => {
+                Ok(self.is_vertex_in_circle(ind_node_c, ind_tri_abd)? == 1
+                    || self.is_triangle_flat(ind_tri_bcd)?)
             }
+            (
+                Node::Value(ind_node_a),
+                Node::Infinity,
+                Node::Value(ind_node_c),
+                Node::Value(ind_node_d),
+            ) => {
+                let pt_a = self.vertex_coordinates[ind_node_a];
+                let pt_c = self.vertex_coordinates[ind_node_c];
+                let pt_d = self.vertex_coordinates[ind_node_d];
+                Ok(is_convex(pt_c, pt_d, pt_a) == 1)
+            }
+            (Node::Value(ind_node_a), Node::Value(_), Node::Infinity, Node::Value(_)) => {
+                Ok(self.is_triangle_flat(ind_tri_abd)?
+                    || self.is_vertex_in_circle(ind_node_a, ind_tri_bcd)? == 1)
+            }
+            (
+                Node::Value(ind_node_a),
+                Node::Value(ind_node_b),
+                Node::Value(ind_node_c),
+                Node::Infinity,
+            ) => {
+                let pt_a = self.vertex_coordinates[ind_node_a];
+                let pt_b = self.vertex_coordinates[ind_node_b];
+                let pt_c = self.vertex_coordinates[ind_node_c];
+                Ok(is_convex(pt_a, pt_b, pt_c) == 1)
+            }
+            (_, _, _, _) => Err(anyhow::Error::msg("Multiple infinity linked together")),
         }
-
-        Ok((path, tri_to_rem, dur_in_circle))
     }
 
     pub fn update_delaunay(&mut self) -> Result<()> {
@@ -471,18 +423,16 @@ impl DelaunayStructure2D {
 
         let now = Instant::now();
         // first triangle insertion
-        let mut last_added_triangle =
-            if self.vertex_coordinates.len() == self.indices_to_insert.len() {
-                let ind1 = self.indices_to_insert.pop().unwrap();
-                let ind2 = self.indices_to_insert.pop().unwrap();
+        if self.vertex_coordinates.len() == self.indices_to_insert.len() {
+            let ind1 = self.indices_to_insert.pop().unwrap();
+            let ind2 = self.indices_to_insert.pop().unwrap();
+            let pt1 = self.vertex_coordinates[ind1];
+            let pt2 = self.vertex_coordinates[ind2];
 
-                let pt1 = self.vertex_coordinates[ind1];
-                let pt2 = self.vertex_coordinates[ind2];
+            let mut aligned = Vec::new();
 
-                let mut aligned = Vec::new();
-
-                let ind_tri1 = loop {
-                    let ind3 = self.indices_to_insert.pop().unwrap();
+            loop {
+                if let Some(ind3) = self.indices_to_insert.pop() {
                     let pt3 = self.vertex_coordinates[ind3];
 
                     let sign = robust::orient2d(
@@ -501,119 +451,117 @@ impl DelaunayStructure2D {
                     );
                     // let sign = geometry_exact_computation_2d::ccw([pt1, pt2, pt3]);
 
-                    let [tri1, tri2, tri3, tri4] = if sign > 0. {
+                    if sign > 0. {
+                        self.inserted_indices.push(ind1);
+                        self.inserted_indices.push(ind2);
+                        self.inserted_indices.push(ind3);
                         self.simpl_struct.first_triangle([ind1, ind2, ind3])?
                     } else if sign < 0. {
+                        self.inserted_indices.push(ind1);
+                        self.inserted_indices.push(ind2);
+                        self.inserted_indices.push(ind3);
                         self.simpl_struct.first_triangle([ind1, ind3, ind2])?
                     } else {
                         aligned.push(ind3);
                         continue;
                     };
-
-                    let ind_tri1 = tri1.ind();
-                    let ind_tri2 = tri2.ind();
-                    let ind_tri3 = tri3.ind();
-                    let ind_tri4 = tri4.ind();
-
-                    self.add_extended_triangle(ind_tri1)?;
-                    self.add_extended_triangle(ind_tri2)?;
-                    self.add_extended_triangle(ind_tri3)?;
-                    self.add_extended_triangle(ind_tri4)?;
-                    break ind_tri1;
-                };
-
-                self.indices_to_insert.append(&mut aligned);
-
-                if !self.simpl_struct.is_valid()? {
+                } else {
                     return Err(anyhow::Error::msg(
                         "Simplicial structure not valid anymore (first step)",
                     ));
                 }
 
-                ind_tri1
-            } else {
-                *self.extended_triangles.iter().next().unwrap().0
-            };
+                break;
+            }
+
+            self.indices_to_insert.append(&mut aligned);
+
+            if !self.simpl_struct.is_valid()? {
+                return Err(anyhow::Error::msg(
+                    "Simplicial structure not valid anymore (first step)",
+                ));
+            }
+        }
         let duration = now.elapsed();
         let nano = duration.as_nanos();
         println!("First triangle computed in {}ms", nano as f32 / 1e6);
 
         let mut walk_ms = 0;
-        let mut surr_path_ms = 0;
-        let mut in_circle_ms = 0;
         let mut insert_ms = 0;
-        let mut update_ms = 0;
+        let mut flip_ms = 0;
         let mut step = 0;
         loop {
             if let Some(ind_v) = self.indices_to_insert.pop() {
                 let now = Instant::now();
-                // let ind_triangle = self.search_circle_containing(ind_v)?;
-                let ind_triangle = self.walk_by_visibility(ind_v, last_added_triangle)?;
+                let ind_triangle =
+                    self.walk_by_visibility(ind_v, self.simpl_struct.get_nb_triangles() - 1)?;
+
                 let duration = now.elapsed();
                 let milli = duration.as_nanos();
                 walk_ms = walk_ms + milli;
 
-                // let now = Instant::now();
-                // // println!("v1");
-                // let (path, tri_to_rem, dur_in_circle) =
-                //     self.search_path_surrounding_v0(ind_v, ind_triangle)?;
-                // // println!("v2");
-                // // let (path, tri_to_rem, dur_in_circle) =
-                // //     self.search_path_surrounding(ind_v, ind_triangle)?;
-                // let duration = now.elapsed();
-                // let milli = duration.as_nanos();
-                // surr_path_ms = surr_path_ms + milli;
-                // in_circle_ms = in_circle_ms + dur_in_circle;
-
                 step = step + 1;
 
                 let now = Instant::now();
-                self.simpl_struct
+                let mut he_to_evaluate = Vec::new();
+                let [he1, he2, he3] = self.simpl_struct.get_triangle(ind_triangle)?.halfedges();
+                he_to_evaluate.push(he1.opposite_halfedge().ind());
+                he_to_evaluate.push(he2.opposite_halfedge().ind());
+                he_to_evaluate.push(he3.opposite_halfedge().ind());
+                let _ = self
+                    .simpl_struct
                     .insert_node_within_triangle(ind_v, ind_triangle)?;
-                // let tri_to_add =
-                //     self.simpl_struct
-                //         .insert_node_within_path(ind_v, &path, &tri_to_rem)?;
+
                 let duration = now.elapsed();
                 let milli = duration.as_nanos();
                 insert_ms = insert_ms + milli;
 
-                // if !self.simpl_struct.is_valid()? {
-                //     return Err(anyhow::Error::msg("Simplicial structure not valid anymore"));
+                let now = Instant::now();
+                while let Some(ind_he) = he_to_evaluate.pop() {
+                    if self.should_flip_halfedge(ind_he)? {
+                        let he = self.simpl_struct.get_halfedge(ind_he)?;
+                        let ind_he_add1 = he.prev_halfedge().opposite_halfedge().ind();
+                        let ind_he_add2 = he.next_halfedge().opposite_halfedge().ind();
+                        let ind_he_add3 = he
+                            .opposite_halfedge()
+                            .prev_halfedge()
+                            .opposite_halfedge()
+                            .ind();
+                        let ind_he_add4 = he
+                            .opposite_halfedge()
+                            .next_halfedge()
+                            .opposite_halfedge()
+                            .ind();
+                        self.simpl_struct.flip_halfedge(ind_he);
+                        he_to_evaluate.push(ind_he_add1);
+                        he_to_evaluate.push(ind_he_add2);
+                        he_to_evaluate.push(ind_he_add3);
+                        he_to_evaluate.push(ind_he_add4);
+                    }
+                }
+                self.inserted_indices.push(ind_v);
+
+                // if !self.is_valid()? {
+                //     return Err(anyhow::Error::msg("Delaunay graph is not valid"));
                 // }
-                // let now = Instant::now();
-                // //update triangles
-                // for &ind_tri in tri_to_rem.iter() {
-                //     self.rem_extended_triangle(ind_tri);
-                // }
-                // for &ind_tri in tri_to_add.iter() {
-                //     self.add_extended_triangle(ind_tri)?;
-                // }
-                // let duration = now.elapsed();
-                // let milli = duration.as_nanos();
-                // update_ms = update_ms + milli;
-                // for tri_added in tri_to_add.iter() {
-                //     let tri = self.extended_triangles.get(tri_added).unwrap();
-                //     match *tri {
-                //         ExtendedTriangle::Triangle(_) => last_added_triangle = *tri_added,
-                //         ExtendedTriangle::Segment(_) => (),
-                //     }
-                // }
+                let duration = now.elapsed();
+                let milli = duration.as_nanos();
+                flip_ms = flip_ms + milli;
             } else {
                 break;
             }
         }
         println!("Walks computed in {}ms", walk_ms as f32 / 1e6);
-        println!(
-            "Surrounding paths computed in {}ms ({}ms for incircle computation)",
-            surr_path_ms as f32 / 1e6,
-            in_circle_ms as f32 / 1e6
-        );
         println!("Insertions computed in {}ms", insert_ms as f32 / 1e6);
-        println!("Circle updates computed in {}ms", update_ms as f32 / 1e6);
+        println!("Flips computed in {}ms", flip_ms as f32 / 1e6);
 
-        if !self.simpl_struct.is_valid()? {
-            return Err(anyhow::Error::msg("Simplicial structure not valid anymore"));
-        }
+        // if !self.simpl_struct.is_valid()? {
+        //     return Err(anyhow::Error::msg("Simplicial structure not valid anymore"));
+        // }
+
+        // if !self.is_valid()? {
+        //     return Err(anyhow::Error::msg("Delaunay graph is not valid"));
+        // }
 
         Ok(())
     }
@@ -662,13 +610,32 @@ impl DelaunayStructure2D {
         }
 
         for ind_triangle in 0..self.get_simplicial().get_nb_triangles() {
-            let extended_cir = self.get_extended_circle(ind_triangle)?;
-            if let ExtendedCircle::Circle(circle) = extended_cir {
-                document = draw_circle(document, &(circle.center * 1000.), circle.radius * 1000.);
+            if let Ok(extended_cir) = self.get_extended_circle(ind_triangle) {
+                if let ExtendedCircle::Circle(circle) = extended_cir {
+                    document =
+                        draw_circle(document, &(circle.center * 1000.), circle.radius * 1000.);
+                }
             }
         }
 
         svg::save(name, &document).unwrap();
         Ok(())
+    }
+
+    pub fn is_valid(&self) -> Result<bool> {
+        let mut valid = true;
+
+        for ind_tri in 0..self.simpl_struct.get_nb_triangles() {
+            for &ind_vert in self.inserted_indices.iter() {
+                let in_circle = self.is_vertex_in_circle(ind_vert, ind_tri)? == 1;
+                if in_circle {
+                    print!("not valid: ");
+                    self.simpl_struct.get_triangle(ind_tri)?.println();
+                    valid = false;
+                }
+            }
+        }
+
+        Ok(valid)
     }
 }
