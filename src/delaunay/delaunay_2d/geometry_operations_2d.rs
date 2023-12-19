@@ -1,4 +1,5 @@
 use nalgebra::base::*;
+use robust::{self, Coord};
 
 pub fn circle_center_and_radius(
     pt1: &Vector2<f32>,
@@ -226,4 +227,38 @@ pub fn build_hilbert_curve(
     }
 
     curve_order
+}
+
+/// checks if ang(pt1pt0, pt1pt2) is convex, flat, or concave
+pub fn is_convex(pt0: [f64; 2], pt1: [f64; 2], pt2: [f64; 2]) -> i8 {
+    let sign = robust::orient2d(
+        Coord {
+            x: pt0[0],
+            y: pt0[1],
+        },
+        Coord {
+            x: pt1[0],
+            y: pt1[1],
+        },
+        Coord {
+            x: pt2[0],
+            y: pt2[1],
+        },
+    );
+
+    if sign > 0. {
+        1
+    } else if sign < 0. {
+        -1
+    } else {
+        let pt1pt0 = [pt1[0] - pt0[0], pt1[1] - pt0[1]];
+        let pt1pt2 = [pt1[0] - pt2[0], pt1[1] - pt2[1]];
+        let scal = pt1pt0[0] * pt1pt2[0] + pt1pt0[1] * pt1pt2[1];
+
+        if scal > 0. {
+            1
+        } else {
+            0
+        }
+    }
 }
