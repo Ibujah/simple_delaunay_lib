@@ -619,6 +619,11 @@ impl DelaunayStructure2D {
         let mut valid = true;
 
         for ind_tri in 0..self.simpl_struct.get_nb_triangles() {
+            if self.is_triangle_flat(ind_tri)? {
+                print!("not valid: ");
+                self.simpl_struct.get_triangle(ind_tri)?.println();
+                valid = false;
+            }
             for &ind_vert in self.inserted_indices.iter() {
                 let in_circle = self.is_vertex_in_circle(ind_vert, ind_tri)? == 1;
                 if in_circle {
