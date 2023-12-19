@@ -77,7 +77,7 @@ fn main() -> Result<()> {
         println!("Non valid delaunay!");
     }
 
-    if del_struct.get_vertices().len() <= 100 {
+    if del_struct.get_vertices().len() <= 10000 {
         let mut document = Document::new().set("viewBox", (-50, -50, 1100, 1100));
 
         let rect = Rectangle::new()
