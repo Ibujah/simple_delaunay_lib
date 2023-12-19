@@ -320,7 +320,11 @@ impl DelaunayStructure2D {
                         y: vert[1],
                     },
                 );
-                if sign < 0. {
+                if he.face().contains_infinity() {
+                    if sign <= 0. {
+                        return Some(he);
+                    }
+                } else if sign < 0. {
                     return Some(he);
                 }
 
@@ -541,9 +545,6 @@ impl DelaunayStructure2D {
                 }
                 self.inserted_indices.push(ind_v);
 
-                // if !self.is_valid()? {
-                //     return Err(anyhow::Error::msg("Delaunay graph is not valid"));
-                // }
                 let duration = now.elapsed();
                 let milli = duration.as_nanos();
                 flip_ms = flip_ms + milli;
@@ -554,14 +555,6 @@ impl DelaunayStructure2D {
         println!("Walks computed in {}ms", walk_ms as f32 / 1e6);
         println!("Insertions computed in {}ms", insert_ms as f32 / 1e6);
         println!("Flips computed in {}ms", flip_ms as f32 / 1e6);
-
-        // if !self.simpl_struct.is_valid()? {
-        //     return Err(anyhow::Error::msg("Simplicial structure not valid anymore"));
-        // }
-
-        // if !self.is_valid()? {
-        //     return Err(anyhow::Error::msg("Delaunay graph is not valid"));
-        // }
 
         Ok(())
     }
