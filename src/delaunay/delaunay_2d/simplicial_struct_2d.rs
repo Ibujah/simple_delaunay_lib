@@ -36,7 +36,8 @@ pub struct SimplicialStructure2D {
     // such that he2 = next(he1)
     // such that he3 = next(he2)
     // such that he1 = next(he3)
-    halfedge_nodes: Vec<[Node; 2]>,
+    // only first node is stored (last node is the next one, taking account of the %3)
+    halfedge_first_node: Vec<Node>,
     halfedge_opposite: Vec<usize>,
 
     nb_triangles: usize,
@@ -59,14 +60,14 @@ pub struct IterTriangle<'a> {
 impl SimplicialStructure2D {
     pub fn new() -> SimplicialStructure2D {
         SimplicialStructure2D {
-            halfedge_nodes: Vec::new(),
+            halfedge_first_node: Vec::new(),
             halfedge_opposite: Vec::new(),
             nb_triangles: 0,
         }
     }
 
     pub fn get_halfedge(&self, ind_halfedge: usize) -> Result<IterHalfEdge> {
-        if ind_halfedge < self.halfedge_nodes.len() {
+        if ind_halfedge < self.halfedge_first_node.len() {
             Ok(IterHalfEdge {
                 simplicial: self,
                 ind_halfedge,
@@ -92,10 +93,10 @@ impl SimplicialStructure2D {
     }
 
     fn insert_triangle(&mut self, nod1: Node, nod2: Node, nod3: Node) -> (usize, usize, usize) {
-        let ind_first = self.halfedge_nodes.len();
-        self.halfedge_nodes.push([nod1, nod2]);
-        self.halfedge_nodes.push([nod2, nod3]);
-        self.halfedge_nodes.push([nod3, nod1]);
+        let ind_first = self.halfedge_first_node.len();
+        self.halfedge_first_node.push(nod1);
+        self.halfedge_first_node.push(nod2);
+        self.halfedge_first_node.push(nod3);
         self.nb_triangles = self.nb_triangles + 1;
 
         (ind_first, ind_first + 1, ind_first + 2)
@@ -109,9 +110,9 @@ impl SimplicialStructure2D {
         nod3: Node,
     ) -> (usize, usize, usize) {
         let ind_first = ind_tri * 3;
-        self.halfedge_nodes[ind_first] = [nod1, nod2];
-        self.halfedge_nodes[ind_first + 1] = [nod2, nod3];
-        self.halfedge_nodes[ind_first + 2] = [nod3, nod1];
+        self.halfedge_first_node[ind_first] = nod1;
+        self.halfedge_first_node[ind_first + 1] = nod2;
+        self.halfedge_first_node[ind_first + 2] = nod3;
 
         (ind_first, ind_first + 1, ind_first + 2)
     }
@@ -175,9 +176,9 @@ impl SimplicialStructure2D {
         let h12 = ind_tri * 3 + 1;
         let h20 = ind_tri * 3 + 2;
 
-        let n0 = self.halfedge_nodes[h01][0];
-        let n1 = self.halfedge_nodes[h12][0];
-        let n2 = self.halfedge_nodes[h20][0];
+        let n0 = self.halfedge_first_node[h01];
+        let n1 = self.halfedge_first_node[h12];
+        let n2 = self.halfedge_first_node[h20];
         let nn = Node::Value(node);
 
         let h10 = self.halfedge_opposite[h01];
@@ -246,10 +247,10 @@ impl SimplicialStructure2D {
             (h01_opp, h12_opp)
         };
 
-        let na = self.halfedge_nodes[hab][0];
-        let nb = self.halfedge_nodes[hbc][0];
-        let nc = self.halfedge_nodes[hcd][0];
-        let nd = self.halfedge_nodes[hda][0];
+        let na = self.halfedge_first_node[hab];
+        let nb = self.halfedge_first_node[hbc];
+        let nc = self.halfedge_first_node[hcd];
+        let nd = self.halfedge_first_node[hda];
 
         let hba = self.halfedge_opposite[hab];
         let hcb = self.halfedge_opposite[hbc];
@@ -276,7 +277,7 @@ impl SimplicialStructure2D {
     pub fn is_valid(&self) -> Result<bool> {
         let mut valid = true;
 
-        for ind_he in 0..self.halfedge_nodes.len() {
+        for ind_he in 0..self.halfedge_first_node.len() {
             let he = self.get_halfedge(ind_he)?;
             valid = valid && he.is_valid();
         }
@@ -304,17 +305,19 @@ impl<'a> IterHalfEdge<'a> {
 
     /// First node
     pub fn first_node(&self) -> Node {
-        self.simplicial.halfedge_nodes[self.ind_halfedge][0]
+        self.simplicial.halfedge_first_node[self.ind_halfedge]
     }
 
     /// Last node
     pub fn last_node(&self) -> Node {
-        self.simplicial.halfedge_nodes[self.ind_halfedge][1]
-    }
+        let on_fac = self.ind_halfedge % 3;
 
-    /// Gets both nodes iterator
-    pub fn nodes(&self) -> [Node; 2] {
-        self.simplicial.halfedge_nodes[self.ind_halfedge]
+        let ind_next = if on_fac == 2 {
+            self.ind_halfedge - 2
+        } else {
+            self.ind_halfedge + 1
+        };
+        self.simplicial.halfedge_first_node[ind_next]
     }
 
     /// Next halfedge on same face
@@ -367,7 +370,8 @@ impl<'a> IterHalfEdge<'a> {
     }
 
     pub fn is_valid(&self) -> bool {
-        let [first_node, last_node] = self.nodes();
+        let first_node = self.first_node();
+        let last_node = self.last_node();
 
         let he_next = self.next_halfedge();
         let he_prev = self.prev_halfedge();
@@ -375,17 +379,17 @@ impl<'a> IterHalfEdge<'a> {
 
         let mut valid = true;
 
-        if !he_next.nodes()[0].equals(&last_node) {
+        if !he_next.first_node().equals(&last_node) {
             self.print();
             println!(": Wrong next halfedge");
             valid = false;
         }
-        if !he_prev.nodes()[1].equals(&first_node) {
+        if !he_prev.last_node().equals(&first_node) {
             self.print();
             println!(": Wrong previous halfedge");
             valid = false;
         }
-        if !he_opp.nodes()[0].equals(&last_node) || !he_opp.nodes()[1].equals(&first_node) {
+        if !he_opp.first_node().equals(&last_node) || !he_opp.last_node().equals(&first_node) {
             self.print();
             println!(": Wrong opposite halfedge");
             valid = false;
