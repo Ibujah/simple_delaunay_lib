@@ -2,10 +2,10 @@ use nalgebra::base::*;
 use robust::{self, Coord};
 
 pub fn circle_center_and_radius(
-    pt1: &Vector2<f32>,
-    pt2: &Vector2<f32>,
-    pt3: &Vector2<f32>,
-) -> Option<(Vector2<f32>, f32)> {
+    pt1: &Vector2<f64>,
+    pt2: &Vector2<f64>,
+    pt3: &Vector2<f64>,
+) -> Option<(Vector2<f64>, f64)> {
     // I'm sure there is a justified equation behind those lines, but I don't remember it...
 
     let mat = Matrix3x2::new(
@@ -35,78 +35,11 @@ pub fn circle_center_and_radius(
     }
 }
 
-pub fn circle_center_and_radius_type2(
-    pt1: &Vector2<f32>,
-    pt2: &Vector2<f32>,
-    pt3: &Vector2<f32>,
-) -> Option<(Vector2<f32>, f32)> {
-    // order points
-    let vec12 = pt2 - pt1;
-    let vec13 = pt3 - pt1;
-    let (p1, p2, p3) = if vec12.dot(&vec13) > 0. {
-        if vec12.norm() > vec13.norm() {
-            (pt1, pt3, pt2)
-        } else {
-            (pt1, pt2, pt3)
-        }
-    } else {
-        (pt2, pt1, pt3)
-    };
-
-    let mid12 = (p1 + p2) / 2.0;
-    let mid13 = (p1 + p3) / 2.0;
-    let nor12 = Vector2::new(p1.y - p2.y, p2.x - p1.x).normalize();
-    let nor13 = Vector2::new(p1.y - p3.y, p3.x - p1.x).normalize();
-
-    let mat = Matrix2::new(-nor12.x, nor13.x, -nor12.y, nor13.y);
-    let b = mid12 - mid13;
-
-    let opt_fac = mat.lu().solve(&b);
-
-    if let Some(fac) = opt_fac {
-        let ctr1 = mid12 + fac[0] * nor12;
-        let ctr2 = mid13 + fac[1] * nor13;
-        let center = (ctr1 + ctr2) / 2.0;
-        let radius1 = (center - pt1).norm();
-        let radius2 = (center - pt2).norm();
-        let radius3 = (center - pt3).norm();
-        let radius = if radius1 > radius2 {
-            if radius3 > radius1 {
-                radius3
-            } else {
-                radius1
-            }
-        } else {
-            if radius3 > radius2 {
-                radius3
-            } else {
-                radius2
-            }
-        };
-        Some((center, radius))
-    } else {
-        None
-    }
-}
-
-pub fn line_normal_and_factor(pt1: &Vector2<f32>, pt2: &Vector2<f32>) -> (Vector2<f32>, f32) {
+pub fn line_normal_and_factor(pt1: &Vector2<f64>, pt2: &Vector2<f64>) -> (Vector2<f64>, f64) {
     let vec = (pt1 - pt2).normalize();
     let normal = Vector2::new(-vec[1], vec[0]);
     let factor = normal.dot(pt1);
     (normal, factor)
-}
-
-pub fn line_normal_and_factor_excluding(
-    pt1: &Vector2<f32>,
-    pt2: &Vector2<f32>,
-    pt_excl: &Vector2<f32>,
-) -> (Vector2<f32>, f32) {
-    let (normal, factor) = line_normal_and_factor(pt1, pt2);
-    if normal.dot(pt_excl) + factor <= 0.0 {
-        (-normal, -factor)
-    } else {
-        (normal, factor)
-    }
 }
 
 pub fn build_hilbert_curve(

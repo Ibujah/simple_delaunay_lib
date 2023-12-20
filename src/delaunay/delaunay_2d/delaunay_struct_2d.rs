@@ -1,57 +1,16 @@
 use anyhow::Result;
 use nalgebra::base::*;
 use robust::{self, Coord};
-use std::collections::HashSet;
 use std::time::Instant;
 
 use log;
-use svg::node::element;
-use svg::node::element::path::Data;
-use svg::Document;
 
-use super::geometry_2d::{Circle, ExtendedCircle, Line};
-use super::geometry_operations_2d::{
-    build_hilbert_curve, circle_center_and_radius, is_convex, line_normal_and_factor,
-};
+use super::geometry_operations_2d::{build_hilbert_curve, is_convex};
 use super::simplicial_struct_2d::{self, Node, SimplicialStructure2D};
 
 pub enum ExtendedTriangle {
     Triangle([[f64; 2]; 3]),
     Segment([[f64; 2]; 2]),
-}
-
-pub fn draw_triangle(
-    document: Document,
-    pts: &[Vector2<f64>; 3],
-    color: &str,
-    stroke_width: f64,
-) -> Document {
-    let [pt0, pt1, pt2] = pts;
-    let data = Data::new()
-        .move_to((pt0[0], pt0[1]))
-        .line_by((pt1[0] - pt0[0], pt1[1] - pt0[1]))
-        .line_by((pt2[0] - pt1[0], pt2[1] - pt1[1]))
-        .close();
-
-    let path = element::Path::new()
-        .set("fill", "none")
-        .set("stroke", color)
-        .set("stroke-width", stroke_width)
-        .set("d", data);
-
-    document.add(path)
-}
-
-pub fn draw_circle(document: Document, ctr: &Vector2<f32>, rad: f32) -> Document {
-    let circle = element::Circle::new()
-        .set("cx", ctr[0])
-        .set("cy", ctr[1])
-        .set("r", rad)
-        .set("stroke", "green")
-        .set("stroke-width", 1.0)
-        .set("fill", "none");
-
-    document.add(circle)
 }
 
 /// 2D Delaunay structure
@@ -147,32 +106,6 @@ impl DelaunayStructure2D {
         };
 
         Ok(ext_tri)
-    }
-
-    pub fn get_extended_circle(&self, ind: usize) -> Result<ExtendedCircle> {
-        let ext_tri = self.get_extended_triangle(ind)?;
-
-        let res = match ext_tri {
-            ExtendedTriangle::Triangle(tri) => {
-                let pt1 = Vector2::new(tri[0][0] as f32, tri[0][1] as f32);
-                let pt2 = Vector2::new(tri[1][0] as f32, tri[1][1] as f32);
-                let pt3 = Vector2::new(tri[2][0] as f32, tri[2][1] as f32);
-                let (ctr, rad) = circle_center_and_radius(&pt1, &pt2, &pt3)
-                    .ok_or(anyhow::Error::msg("Could not compute circle"))?;
-
-                ExtendedCircle::Circle(Circle::new(ctr, rad))
-            }
-            ExtendedTriangle::Segment(lin) => {
-                let pt1 = Vector2::new(lin[0][0] as f32, lin[0][1] as f32);
-                let pt2 = Vector2::new(lin[1][0] as f32, lin[1][1] as f32);
-
-                let (nor, fac) = line_normal_and_factor(&pt1, &pt2);
-
-                ExtendedCircle::Line(Line::new(nor, fac))
-            }
-        };
-
-        Ok(res)
     }
 
     fn is_vertex_in_circle(&self, ind_vert: usize, ind_tri: usize) -> Result<i8> {
@@ -524,62 +457,6 @@ impl DelaunayStructure2D {
         log::info!("Insertions computed in {}ms", insert_ms as f32 / 1e6);
         log::info!("Flips computed in {}ms", flip_ms as f32 / 1e6);
 
-        Ok(())
-    }
-
-    pub fn draw_svg(&self, name: String, highlight: &HashSet<usize>) -> Result<()> {
-        let mut document = Document::new().set("viewBox", (-50, -50, 1100, 1100));
-
-        let rect = element::Rectangle::new()
-            .set("x", -50)
-            .set("y", -50)
-            .set("width", 1100)
-            .set("height", 1100)
-            .set("fill", "white");
-        document = document.add(rect);
-
-        for ind_triangle in 0..self.get_simplicial().get_nb_triangles() {
-            let tri = self.get_simplicial().get_triangle(ind_triangle)?;
-
-            let [h1, h2, h3] = tri.halfedges();
-            let ind_pt1 = h1.first_node();
-            let ind_pt2 = h2.first_node();
-            let ind_pt3 = h3.first_node();
-
-            if let (Node::Value(val1), Node::Value(val2), Node::Value(val3)) =
-                (ind_pt1, ind_pt2, ind_pt3)
-            {
-                let pt1 = self.get_vertices()[val1];
-                let pt2 = self.get_vertices()[val2];
-                let pt3 = self.get_vertices()[val3];
-                if highlight.contains(&ind_triangle) {
-                    document = draw_triangle(
-                        document,
-                        &[pt1 * 1000., pt2 * 1000., pt3 * 1000.],
-                        "red",
-                        2.0,
-                    );
-                } else {
-                    document = draw_triangle(
-                        document,
-                        &[pt1 * 1000., pt2 * 1000., pt3 * 1000.],
-                        "black",
-                        1.0,
-                    );
-                }
-            }
-        }
-
-        for ind_triangle in 0..self.get_simplicial().get_nb_triangles() {
-            if let Ok(extended_cir) = self.get_extended_circle(ind_triangle) {
-                if let ExtendedCircle::Circle(circle) = extended_cir {
-                    document =
-                        draw_circle(document, &(circle.center * 1000.), circle.radius * 1000.);
-                }
-            }
-        }
-
-        svg::save(name, &document).unwrap();
         Ok(())
     }
 
