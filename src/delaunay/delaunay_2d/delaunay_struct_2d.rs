@@ -1,12 +1,12 @@
 use anyhow::Result;
+use log;
 use robust::{self, Coord};
 use std::time::Instant;
-
-use log;
 
 use super::geometry_operations_2d::{build_hilbert_curve, is_convex};
 use super::simplicial_struct_2d::{self, Node, SimplicialStructure2D};
 
+/// Extended triangle, including point at infinity
 pub enum ExtendedTriangle {
     Triangle([[f64; 2]; 3]),
     Segment([[f64; 2]; 2]),
@@ -21,24 +21,13 @@ pub struct DelaunayStructure2D {
 }
 
 impl DelaunayStructure2D {
+    /// Initialize Delaunay structure
     pub fn new() -> DelaunayStructure2D {
         DelaunayStructure2D {
             simpl_struct: simplicial_struct_2d::SimplicialStructure2D::new(),
             vertex_coordinates: Vec::new(),
             indices_to_insert: Vec::new(),
             inserted_indices: Vec::new(),
-        }
-    }
-
-    pub fn add_vertex_to_insert(&mut self, to_insert: [f64; 2]) -> () {
-        self.indices_to_insert.push(self.vertex_coordinates.len());
-        self.vertex_coordinates.push(to_insert);
-    }
-
-    pub fn add_vertices_to_insert(&mut self, to_insert: &Vec<[f64; 2]>) -> () {
-        for &vert in to_insert.iter() {
-            self.indices_to_insert.push(self.vertex_coordinates.len());
-            self.vertex_coordinates.push(vert);
         }
     }
 
@@ -97,6 +86,20 @@ impl DelaunayStructure2D {
         };
 
         Ok(ext_tri)
+    }
+
+    /// Adds a vertex to insert within the structure (need to call update_delaunay())
+    pub fn add_vertex_to_insert(&mut self, to_insert: [f64; 2]) -> () {
+        self.indices_to_insert.push(self.vertex_coordinates.len());
+        self.vertex_coordinates.push(to_insert);
+    }
+
+    /// Adds a set of vertices to insert within the structure (need to call update_delaunay())
+    pub fn add_vertices_to_insert(&mut self, to_insert: &Vec<[f64; 2]>) -> () {
+        for &vert in to_insert.iter() {
+            self.indices_to_insert.push(self.vertex_coordinates.len());
+            self.vertex_coordinates.push(vert);
+        }
     }
 
     fn is_vertex_strict_in_circle(&self, ind_vert: usize, ind_tri: usize) -> Result<bool> {

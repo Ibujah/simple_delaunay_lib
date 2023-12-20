@@ -19,9 +19,9 @@ mod delaunay_2d_test {
         let duration = now.elapsed();
         let milli = duration.as_millis();
 
-        println!("Delaunay computed in {}ms", milli);
+        log::info!("Delaunay computed in {}ms", milli);
 
-        println!("Checking delaunay");
+        log::info!("Checking delaunay");
         assert!(del_struct.is_valid()?);
         Ok(())
     }
@@ -55,6 +55,50 @@ mod delaunay_2d_test {
             vec_inds.push(ind);
         }
         create_and_check_delaunay(&vec_pts)?;
+        Ok(())
+    }
+
+    #[test]
+    fn test_update() -> Result<()> {
+        let mut rng = rand::thread_rng();
+
+        let mut vec_pts: Vec<[f64; 2]> = Vec::new();
+        let mut vec_inds: Vec<usize> = Vec::new();
+        for ind in 0..10000 {
+            let (x, y): (f64, f64) = rng.gen();
+            vec_pts.push([x, y]);
+            vec_inds.push(ind);
+        }
+        let now = Instant::now();
+        let mut del_struct = delaunay_struct_2d::DelaunayStructure2D::new();
+        del_struct.add_vertices_to_insert(&vec_pts);
+        del_struct.update_delaunay()?;
+        let duration = now.elapsed();
+        let milli = duration.as_millis();
+
+        log::info!("Delaunay computed in {}ms", milli);
+
+        log::info!("Checking delaunay");
+        assert!(del_struct.is_valid()?);
+
+        let mut vec_pts: Vec<[f64; 2]> = Vec::new();
+        let mut vec_inds: Vec<usize> = Vec::new();
+        for ind in 0..10000 {
+            let (x, y): (f64, f64) = rng.gen();
+            vec_pts.push([x, y]);
+            vec_inds.push(ind);
+        }
+        let now = Instant::now();
+        let mut del_struct = delaunay_struct_2d::DelaunayStructure2D::new();
+        del_struct.add_vertices_to_insert(&vec_pts);
+        del_struct.update_delaunay()?;
+        let duration = now.elapsed();
+        let milli = duration.as_millis();
+
+        log::info!("Delaunay update computed in {}ms", milli);
+
+        log::info!("Checking delaunay");
+        assert!(del_struct.is_valid()?);
         Ok(())
     }
 }
