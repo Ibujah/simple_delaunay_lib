@@ -139,30 +139,6 @@ impl DelaunayStructure2D {
                 let pt2 = self.vertex_coordinates[ind_v2];
                 let pt3 = self.vertex_coordinates[ind_v3];
                 ExtendedTriangle::Triangle([pt1, pt2, pt3])
-                // let sign = robust::orient2d(
-                //     Coord {
-                //         x: pt1[0],
-                //         y: pt1[1],
-                //     },
-                //     Coord {
-                //         x: pt2[0],
-                //         y: pt2[1],
-                //     },
-                //     Coord {
-                //         x: pt3[0],
-                //         y: pt3[1],
-                //     },
-                // );
-                // // let sign = geometry_exact_computation_2d::ccw([pt1, pt2, pt3]);
-
-                // if sign > 0. {
-                //     ExtendedTriangle::Triangle([pt1, pt2, pt3])
-                // } else if sign < 0. {
-                //     self.simpl_struct.get_triangle(ind_triangle)?.println();
-                //     return Err(anyhow::Error::msg("Misoriented triangle"));
-                // } else {
-                //     return Err(anyhow::Error::msg("Flat triangle"));
-                // }
             }
             (_, _, _) => {
                 return Err(anyhow::Error::msg("Case should not happen"));
@@ -204,7 +180,6 @@ impl DelaunayStructure2D {
 
         let in_circle = match ext_tri {
             ExtendedTriangle::Triangle(tri) => {
-                //let sign = geometry_exact_computation_2d::incircle(*tri, vert);
                 let sign = robust::incircle(
                     Coord {
                         x: tri[0][0],
@@ -246,7 +221,6 @@ impl DelaunayStructure2D {
                         y: vert[1],
                     },
                 );
-                // let sign = geometry_exact_computation_2d::ccw([lin[0], lin[1], vert]);
 
                 if sign > 0. {
                     1
@@ -273,7 +247,6 @@ impl DelaunayStructure2D {
         let ext_tri = self.get_extended_triangle(ind_tri)?;
 
         let flat = if let ExtendedTriangle::Triangle(tri) = ext_tri {
-            //let sign = geometry_exact_computation_2d::incircle(*tri, vert);
             let sign = robust::orient2d(
                 Coord {
                     x: tri[0][0],
@@ -327,11 +300,6 @@ impl DelaunayStructure2D {
                 } else if sign < 0. {
                     return Some(he);
                 }
-
-                // let sign = geometry_exact_computation_2d::ccw([pt1, pt2, *vert]);
-                // if sign < 0 {
-                //     return Some(he);
-                // }
             }
         }
         None
@@ -453,7 +421,6 @@ impl DelaunayStructure2D {
                             y: pt3[1],
                         },
                     );
-                    // let sign = geometry_exact_computation_2d::ccw([pt1, pt2, pt3]);
 
                     if sign > 0. {
                         self.inserted_indices.push(ind1);
