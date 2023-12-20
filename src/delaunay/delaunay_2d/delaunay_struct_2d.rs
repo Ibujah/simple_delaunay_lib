@@ -99,73 +99,45 @@ impl DelaunayStructure2D {
         Ok(ext_tri)
     }
 
-    fn is_vertex_in_circle(&self, ind_vert: usize, ind_tri: usize) -> Result<i8> {
+    fn is_vertex_strict_in_circle(&self, ind_vert: usize, ind_tri: usize) -> Result<bool> {
         let vert = self.get_vertices()[ind_vert];
         let ext_tri = self.get_extended_triangle(ind_tri)?;
 
-        let in_circle = match ext_tri {
-            ExtendedTriangle::Triangle(tri) => {
-                let sign = robust::incircle(
-                    Coord {
-                        x: tri[0][0],
-                        y: tri[0][1],
-                    },
-                    Coord {
-                        x: tri[1][0],
-                        y: tri[1][1],
-                    },
-                    Coord {
-                        x: tri[2][0],
-                        y: tri[2][1],
-                    },
-                    Coord {
-                        x: vert[0],
-                        y: vert[1],
-                    },
-                );
-                if sign > 0. {
-                    1
-                } else if sign < 0. {
-                    -1
-                } else {
-                    0
-                }
-            }
-            ExtendedTriangle::Segment(lin) => {
-                let sign = robust::orient2d(
-                    Coord {
-                        x: lin[0][0],
-                        y: lin[0][1],
-                    },
-                    Coord {
-                        x: lin[1][0],
-                        y: lin[1][1],
-                    },
-                    Coord {
-                        x: vert[0],
-                        y: vert[1],
-                    },
-                );
-
-                if sign > 0. {
-                    1
-                } else if sign < 0. {
-                    -1
-                } else {
-                    let [[x1, y1], [x2, y2]] = lin;
-                    let [x, y] = vert;
-                    let scal1 = (x2 - x1) * (x - x1) + (y2 - y1) * (y - y1);
-                    let scal2 = (x1 - x2) * (x - x2) + (y1 - y2) * (y - y2);
-
-                    if scal1 > 0.0 && scal2 > 0.0 {
-                        0
-                    } else {
-                        -1
-                    }
-                }
-            }
+        let sign = match ext_tri {
+            ExtendedTriangle::Triangle(tri) => robust::incircle(
+                Coord {
+                    x: tri[0][0],
+                    y: tri[0][1],
+                },
+                Coord {
+                    x: tri[1][0],
+                    y: tri[1][1],
+                },
+                Coord {
+                    x: tri[2][0],
+                    y: tri[2][1],
+                },
+                Coord {
+                    x: vert[0],
+                    y: vert[1],
+                },
+            ),
+            ExtendedTriangle::Segment(lin) => robust::orient2d(
+                Coord {
+                    x: lin[0][0],
+                    y: lin[0][1],
+                },
+                Coord {
+                    x: lin[1][0],
+                    y: lin[1][1],
+                },
+                Coord {
+                    x: vert[0],
+                    y: vert[1],
+                },
+            ),
         };
-        Ok(in_circle)
+        Ok(sign > 0.)
     }
 
     fn is_triangle_flat(&self, ind_tri: usize) -> Result<bool> {
@@ -268,11 +240,11 @@ impl DelaunayStructure2D {
 
         match (node_a, node_b, node_c, node_d) {
             (Node::Value(ind_node_a), Node::Value(_), Node::Value(ind_node_c), Node::Value(_)) => {
-                Ok(self.is_vertex_in_circle(ind_node_c, ind_tri_abd)? == 1
-                    || self.is_vertex_in_circle(ind_node_a, ind_tri_bcd)? == 1)
+                Ok(self.is_vertex_strict_in_circle(ind_node_c, ind_tri_abd)?
+                    || self.is_vertex_strict_in_circle(ind_node_a, ind_tri_bcd)?)
             }
             (Node::Infinity, Node::Value(_), Node::Value(ind_node_c), Node::Value(_)) => {
-                Ok(self.is_vertex_in_circle(ind_node_c, ind_tri_abd)? == 1
+                Ok(self.is_vertex_strict_in_circle(ind_node_c, ind_tri_abd)?
                     || self.is_triangle_flat(ind_tri_bcd)?)
             }
             (
@@ -288,7 +260,7 @@ impl DelaunayStructure2D {
             }
             (Node::Value(ind_node_a), Node::Value(_), Node::Infinity, Node::Value(_)) => {
                 Ok(self.is_triangle_flat(ind_tri_abd)?
-                    || self.is_vertex_in_circle(ind_node_a, ind_tri_bcd)? == 1)
+                    || self.is_vertex_strict_in_circle(ind_node_a, ind_tri_bcd)?)
             }
             (
                 Node::Value(ind_node_a),
@@ -363,7 +335,7 @@ impl DelaunayStructure2D {
                     };
                 } else {
                     return Err(anyhow::Error::msg(
-                        "Simplicial structure not valid anymore (first step)",
+                        "Could not find three non aligned points",
                     ));
                 }
 
@@ -371,12 +343,6 @@ impl DelaunayStructure2D {
             }
 
             self.indices_to_insert.append(&mut aligned);
-
-            if !self.simpl_struct.is_valid()? {
-                return Err(anyhow::Error::msg(
-                    "Simplicial structure not valid anymore (first step)",
-                ));
-            }
         }
         let duration = now.elapsed();
         let nano = duration.as_nanos();
@@ -461,7 +427,7 @@ impl DelaunayStructure2D {
                 valid = false;
             }
             for &ind_vert in self.inserted_indices.iter() {
-                let in_circle = self.is_vertex_in_circle(ind_vert, ind_tri)? == 1;
+                let in_circle = self.is_vertex_strict_in_circle(ind_vert, ind_tri)?;
                 if in_circle {
                     log::error!("Non Delaunay triangle: ");
                     self.get_simplicial().get_triangle(ind_tri)?.println();
