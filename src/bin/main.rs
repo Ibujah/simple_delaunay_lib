@@ -93,7 +93,7 @@ pub fn get_extended_circle(
 
 pub fn draw_triangle(
     document: Document,
-    pts: &[Vector2<f64>; 3],
+    pts: &[[f64; 2]; 3],
     color: &str,
     stroke_width: f64,
 ) -> Document {
@@ -159,14 +159,22 @@ pub fn draw_svg(
             if highlight.contains(&ind_triangle) {
                 document = draw_triangle(
                     document,
-                    &[pt1 * 1000., pt2 * 1000., pt3 * 1000.],
+                    &[
+                        [pt1[0] * 1000., pt1[1] * 1000.],
+                        [pt2[0] * 1000., pt2[1] * 1000.],
+                        [pt3[0] * 1000., pt3[1] * 1000.],
+                    ],
                     "red",
                     2.0,
                 );
             } else {
                 document = draw_triangle(
                     document,
-                    &[pt1 * 1000., pt2 * 1000., pt3 * 1000.],
+                    &[
+                        [pt1[0] * 1000., pt1[1] * 1000.],
+                        [pt2[0] * 1000., pt2[1] * 1000.],
+                        [pt3[0] * 1000., pt3[1] * 1000.],
+                    ],
                     "black",
                     1.0,
                 );
@@ -193,11 +201,11 @@ fn main() -> Result<()> {
     env_logger::init();
     let mut rng = rand::thread_rng();
 
-    let mut vec_pts: Vec<Vector2<f64>> = Vec::new();
+    let mut vec_pts: Vec<[f64; 2]> = Vec::new();
     let mut vec_inds: Vec<usize> = Vec::new();
     for ind in 0..10000 {
         let (x, y): (f64, f64) = rng.gen();
-        vec_pts.push(Vector2::new(x, y));
+        vec_pts.push([x, y]);
         vec_inds.push(ind);
     }
     // for ind in 0..10000 {
@@ -241,11 +249,13 @@ fn main() -> Result<()> {
         document = document.add(rect);
 
         for ind in 0..(vec_pts.len() - 1) {
-            let pt0 = vec_pts[vec_inds[ind]] * 1000.;
-            let pt1 = vec_pts[vec_inds[ind + 1]] * 1000.;
+            let pt0_x = vec_pts[vec_inds[ind]][0] * 1000.;
+            let pt0_y = vec_pts[vec_inds[ind]][1] * 1000.;
+            let pt1_x = vec_pts[vec_inds[ind + 1]][0] * 1000.;
+            let pt1_y = vec_pts[vec_inds[ind + 1]][1] * 1000.;
             let data = Data::new()
-                .move_to((pt0.x, pt0.y))
-                .line_by((pt1.x - pt0.x, pt1.y - pt0.y));
+                .move_to((pt0_x, pt0_y))
+                .line_by((pt1_x - pt0_x, pt1_y - pt0_y));
 
             let path = element::Path::new()
                 .set("fill", "none")

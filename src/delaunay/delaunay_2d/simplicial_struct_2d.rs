@@ -449,6 +449,15 @@ impl<'a> IterTriangle<'a> {
         ]
     }
 
+    /// Nodes(array of nodes)
+    pub fn nodes(&self) -> [Node; 3] {
+        [
+            self.simplicial.halfedge_first_node[self.ind_triangle * 3],
+            self.simplicial.halfedge_first_node[self.ind_triangle * 3 + 1],
+            self.simplicial.halfedge_first_node[self.ind_triangle * 3 + 2],
+        ]
+    }
+
     pub fn to_string(&self) -> String {
         let nod1 = self.simplicial.halfedge_first_node[self.ind_triangle * 3];
         let nod2 = self.simplicial.halfedge_first_node[self.ind_triangle * 3 + 1];

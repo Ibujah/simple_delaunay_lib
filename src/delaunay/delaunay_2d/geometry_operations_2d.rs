@@ -42,27 +42,24 @@ pub fn line_normal_and_factor(pt1: &Vector2<f64>, pt2: &Vector2<f64>) -> (Vector
     (normal, factor)
 }
 
-pub fn build_hilbert_curve(
-    vertices: &Vec<Vector2<f64>>,
-    indices_to_add: &Vec<usize>,
-) -> Vec<usize> {
+pub fn build_hilbert_curve(vertices: &Vec<[f64; 2]>, indices_to_add: &Vec<usize>) -> Vec<usize> {
     let mut curve_order = Vec::new();
 
     let mut pt_min = vertices[indices_to_add[0]];
     let mut pt_max = vertices[indices_to_add[0]];
 
     for &ind in indices_to_add.iter() {
-        if pt_min.x > vertices[ind].x {
-            pt_min.x = vertices[ind].x;
+        if pt_min[0] > vertices[ind][0] {
+            pt_min[0] = vertices[ind][0];
         }
-        if pt_min.y > vertices[ind].y {
-            pt_min.y = vertices[ind].y;
+        if pt_min[1] > vertices[ind][1] {
+            pt_min[1] = vertices[ind][1];
         }
-        if pt_max.x < vertices[ind].x {
-            pt_max.x = vertices[ind].x;
+        if pt_max[0] < vertices[ind][0] {
+            pt_max[0] = vertices[ind][0];
         }
-        if pt_max.y < vertices[ind].y {
-            pt_max.y = vertices[ind].y;
+        if pt_max[1] < vertices[ind][1] {
+            pt_max[1] = vertices[ind][1];
         }
     }
 
@@ -73,8 +70,8 @@ pub fn build_hilbert_curve(
     loop {
         if let Some((rot, pt_min, pt_max, indices_to_add)) = to_subdiv.pop() {
             if indices_to_add.len() > 1 {
-                let sep_x = (pt_min.x + pt_max.x) / 2.0;
-                let sep_y = (pt_min.y + pt_max.y) / 2.0;
+                let sep_x = (pt_min[0] + pt_max[0]) / 2.0;
+                let sep_y = (pt_min[1] + pt_max[1]) / 2.0;
 
                 let mut ind_a = Vec::new();
                 let mut ind_b = Vec::new();
@@ -83,14 +80,14 @@ pub fn build_hilbert_curve(
 
                 for &ind in indices_to_add.iter() {
                     let vert = vertices[ind];
-                    if vert.x < sep_x {
-                        if vert.y < sep_y {
+                    if vert[0] < sep_x {
+                        if vert[1] < sep_y {
                             ind_a.push(ind);
                         } else {
                             ind_b.push(ind);
                         }
                     } else {
-                        if vert.y < sep_y {
+                        if vert[1] < sep_y {
                             ind_d.push(ind);
                         } else {
                             ind_c.push(ind);
@@ -99,16 +96,16 @@ pub fn build_hilbert_curve(
                 }
 
                 let pt_a_min = pt_min;
-                let pt_a_max = Vector2::new(sep_x, sep_y);
+                let pt_a_max = [sep_x, sep_y];
 
-                let pt_b_min = Vector2::new(pt_min.x, sep_y);
-                let pt_b_max = Vector2::new(sep_x, pt_max.y);
+                let pt_b_min = [pt_min[0], sep_y];
+                let pt_b_max = [sep_x, pt_max[1]];
 
-                let pt_c_min = Vector2::new(sep_x, sep_y);
+                let pt_c_min = [sep_x, sep_y];
                 let pt_c_max = pt_max;
 
-                let pt_d_min = Vector2::new(sep_x, pt_min.y);
-                let pt_d_max = Vector2::new(pt_max.x, sep_y);
+                let pt_d_min = [sep_x, pt_min[1]];
+                let pt_d_max = [pt_max[0], sep_y];
 
                 if rot == 0 {
                     to_subdiv.push((3, pt_a_min, pt_a_max, ind_a));
