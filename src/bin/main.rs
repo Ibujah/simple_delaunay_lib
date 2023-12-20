@@ -13,11 +13,49 @@ use svg::Document;
 use delaunay_lib::delaunay::delaunay_2d::delaunay_struct_2d::{
     DelaunayStructure2D, ExtendedTriangle,
 };
-use delaunay_lib::delaunay::delaunay_2d::geometry_operations_2d::{
-    build_hilbert_curve, circle_center_and_radius, line_normal_and_factor,
-};
+use delaunay_lib::delaunay::delaunay_2d::geometry_operations_2d::build_hilbert_curve;
 use delaunay_lib::delaunay::delaunay_2d::simplicial_struct_2d::Node;
 
+pub fn circle_center_and_radius(
+    pt1: &Vector2<f64>,
+    pt2: &Vector2<f64>,
+    pt3: &Vector2<f64>,
+) -> Option<(Vector2<f64>, f64)> {
+    // I'm sure there is a justified equation behind those lines, but I don't remember it...
+
+    let mat = Matrix3x2::new(
+        pt2[0] - pt1[0],
+        pt2[1] - pt1[1],
+        pt3[0] - pt2[0],
+        pt3[1] - pt2[1],
+        pt1[0] - pt3[0],
+        pt1[1] - pt3[1],
+    );
+
+    let b = Vector3::new(
+        0.5 * (pt2 - pt1).norm_squared() + (pt2 - pt1).dot(pt1),
+        0.5 * (pt3 - pt2).norm_squared() + (pt3 - pt2).dot(pt2),
+        0.5 * (pt1 - pt3).norm_squared() + (pt1 - pt3).dot(pt3),
+    );
+
+    let mat_mod = mat.transpose() * mat;
+    let b_mod = mat.transpose() * b;
+
+    let opt_center = mat_mod.lu().solve(&b_mod);
+    if let Some(center) = opt_center {
+        let radius = (center - pt1).norm();
+        Some((center, radius))
+    } else {
+        None
+    }
+}
+
+pub fn line_normal_and_factor(pt1: &Vector2<f64>, pt2: &Vector2<f64>) -> (Vector2<f64>, f64) {
+    let vec = (pt1 - pt2).normalize();
+    let normal = Vector2::new(-vec[1], vec[0]);
+    let factor = normal.dot(pt1);
+    (normal, factor)
+}
 #[derive(Copy, Clone)]
 pub struct Circle {
     pub center: Vector2<f64>,
