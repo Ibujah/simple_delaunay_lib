@@ -4,6 +4,7 @@ use robust::{self, Coord};
 use std::collections::HashSet;
 use std::time::Instant;
 
+use log;
 use svg::node::element;
 use svg::node::element::path::Data;
 use svg::Document;
@@ -47,7 +48,7 @@ pub fn draw_circle(document: Document, ctr: &Vector2<f32>, rad: f32) -> Document
         .set("cy", ctr[1])
         .set("r", rad)
         .set("stroke", "green")
-        .set("stroke-width", 0.1)
+        .set("stroke-width", 1.0)
         .set("fill", "none");
 
     document.add(circle)
@@ -391,7 +392,7 @@ impl DelaunayStructure2D {
         self.indices_to_insert = build_hilbert_curve(&self.get_vertices(), &self.indices_to_insert);
         let duration = now.elapsed();
         let nano = duration.as_nanos();
-        println!("Hilbert curve computed in {}ms", nano as f32 / 1e6);
+        log::info!("Hilbert curve computed in {}ms", nano as f32 / 1e6);
 
         let now = Instant::now();
         // first triangle insertion
@@ -455,7 +456,7 @@ impl DelaunayStructure2D {
         }
         let duration = now.elapsed();
         let nano = duration.as_nanos();
-        println!("First triangle computed in {}ms", nano as f32 / 1e6);
+        log::info!("First triangle computed in {}ms", nano as f32 / 1e6);
 
         let mut walk_ms = 0;
         let mut insert_ms = 0;
@@ -519,9 +520,9 @@ impl DelaunayStructure2D {
                 break;
             }
         }
-        println!("Walks computed in {}ms", walk_ms as f32 / 1e6);
-        println!("Insertions computed in {}ms", insert_ms as f32 / 1e6);
-        println!("Flips computed in {}ms", flip_ms as f32 / 1e6);
+        log::info!("Walks computed in {}ms", walk_ms as f32 / 1e6);
+        log::info!("Insertions computed in {}ms", insert_ms as f32 / 1e6);
+        log::info!("Flips computed in {}ms", flip_ms as f32 / 1e6);
 
         Ok(())
     }
@@ -587,14 +588,14 @@ impl DelaunayStructure2D {
 
         for ind_tri in 0..self.simpl_struct.get_nb_triangles() {
             if self.is_triangle_flat(ind_tri)? {
-                print!("not valid: ");
+                log::error!("Flat triangle: ");
                 self.simpl_struct.get_triangle(ind_tri)?.println();
                 valid = false;
             }
             for &ind_vert in self.inserted_indices.iter() {
                 let in_circle = self.is_vertex_in_circle(ind_vert, ind_tri)? == 1;
                 if in_circle {
-                    print!("not valid: ");
+                    log::error!("Non Delaunay triangle: ");
                     self.simpl_struct.get_triangle(ind_tri)?.println();
                     valid = false;
                 }

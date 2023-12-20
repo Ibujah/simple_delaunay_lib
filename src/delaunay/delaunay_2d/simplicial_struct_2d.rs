@@ -1,4 +1,5 @@
 use anyhow::Result;
+use log;
 
 #[derive(Copy, Clone)]
 pub enum Node {
@@ -15,16 +16,19 @@ impl Node {
         }
     }
 
-    pub fn print(&self) -> () {
+    pub fn to_string(&self) -> String {
         match self {
-            Node::Infinity => print!("Node Infinity"),
-            Node::Value(val) => print!("Node {}", val),
+            Node::Infinity => "Node Infinity".to_string(),
+            Node::Value(val) => format!("Node {}", val),
         }
     }
 
+    pub fn print(&self) -> () {
+        print!("{}", self.to_string());
+    }
+
     pub fn println(&self) -> () {
-        self.print();
-        println!("");
+        println!("{}", self.to_string());
     }
 }
 
@@ -380,34 +384,36 @@ impl<'a> IterHalfEdge<'a> {
         let mut valid = true;
 
         if !he_next.first_node().equals(&last_node) {
-            self.print();
-            println!(": Wrong next halfedge");
+            log::error!("{}: Wrong next halfedge", self.to_string());
             valid = false;
         }
         if !he_prev.last_node().equals(&first_node) {
-            self.print();
-            println!(": Wrong previous halfedge");
+            log::error!("{}: Wrong previous halfedge", self.to_string());
             valid = false;
         }
         if !he_opp.first_node().equals(&last_node) || !he_opp.last_node().equals(&first_node) {
-            self.print();
-            println!(": Wrong opposite halfedge");
+            log::error!("{}: Wrong opposite halfedge", self.to_string());
             valid = false;
         }
 
         valid
     }
 
+    pub fn to_string(&self) -> String {
+        format!(
+            "Edge {}: {} -> {}",
+            self.ind(),
+            self.first_node().to_string(),
+            self.last_node().to_string()
+        )
+    }
+
     pub fn print(&self) -> () {
-        print!("Edge {}: ", self.ind());
-        self.first_node().print();
-        print!(" -> ");
-        self.last_node().print();
+        print!("{}", self.to_string());
     }
 
     pub fn println(&self) -> () {
-        self.print();
-        println!("");
+        println!("{}", self.to_string());
     }
 }
 
@@ -441,6 +447,19 @@ impl<'a> IterTriangle<'a> {
                 ind_halfedge: self.ind_triangle * 3 + 2,
             },
         ]
+    }
+
+    pub fn to_string(&self) -> String {
+        let nod1 = self.simplicial.halfedge_first_node[self.ind_triangle * 3];
+        let nod2 = self.simplicial.halfedge_first_node[self.ind_triangle * 3 + 1];
+        let nod3 = self.simplicial.halfedge_first_node[self.ind_triangle * 3 + 2];
+        format!(
+            "Face {}: {} -> {} -> {}",
+            self.ind(),
+            nod1.to_string(),
+            nod2.to_string(),
+            nod3.to_string()
+        )
     }
 
     pub fn print(&self) -> () {
