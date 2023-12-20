@@ -1,1 +1,5 @@
-pub mod delaunay;
+#![warn(missing_docs)]
+//! Delaunay graph computation library
+
+/// 2D delaunay algorithm
+pub mod delaunay_2d;

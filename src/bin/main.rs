@@ -10,11 +10,9 @@ use svg::node::element;
 use svg::node::element::path::Data;
 use svg::Document;
 
-use delaunay_lib::delaunay::delaunay_2d::delaunay_struct_2d::{
-    DelaunayStructure2D, ExtendedTriangle,
-};
-use delaunay_lib::delaunay::delaunay_2d::geometry_operations_2d::build_hilbert_curve;
-use delaunay_lib::delaunay::delaunay_2d::simplicial_struct_2d::Node;
+use delaunay_lib::delaunay_2d::delaunay_struct_2d::{DelaunayStructure2D, ExtendedTriangle};
+use delaunay_lib::delaunay_2d::geometry_operations_2d::build_hilbert_curve;
+use delaunay_lib::delaunay_2d::simplicial_struct_2d::Node;
 
 pub fn circle_center_and_radius(
     pt1: &Vector2<f64>,

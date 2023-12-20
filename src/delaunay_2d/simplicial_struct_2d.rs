@@ -1,13 +1,18 @@
 use anyhow::Result;
 use log;
 
+/// Node in the graph, can be at infinity
 #[derive(Copy, Clone)]
 pub enum Node {
+    /// Node at infinity
     Infinity,
+
+    /// Index of a finite node
     Value(usize),
 }
 
 impl Node {
+    /// Checks equality between nodes
     pub fn equals(&self, node: &Node) -> bool {
         match (self, node) {
             (Node::Infinity, Node::Infinity) => true,
@@ -16,6 +21,7 @@ impl Node {
         }
     }
 
+    /// Node to string
     pub fn to_string(&self) -> String {
         match self {
             Node::Infinity => "Node Infinity".to_string(),
@@ -23,10 +29,12 @@ impl Node {
         }
     }
 
+    /// Print node string
     pub fn print(&self) -> () {
         print!("{}", self.to_string());
     }
 
+    /// Println node string
     pub fn println(&self) -> () {
         println!("{}", self.to_string());
     }
@@ -35,7 +43,7 @@ impl Node {
 /// 2D Simplicial structure
 pub struct SimplicialStructure2D {
     // i   : he1 \
-    // i+1 : he2  | -> face
+    // i+1 : he2  | -> triangle
     // i+2 : he3 /
     // such that he2 = next(he1)
     // such that he3 = next(he2)
@@ -62,6 +70,7 @@ pub struct IterTriangle<'a> {
 }
 
 impl SimplicialStructure2D {
+    /// Simplicial structure initialisation
     pub fn new() -> SimplicialStructure2D {
         SimplicialStructure2D {
             halfedge_first_node: Vec::new(),
@@ -70,6 +79,7 @@ impl SimplicialStructure2D {
         }
     }
 
+    /// Gets halfedge iterator from index
     pub fn get_halfedge(&self, ind_halfedge: usize) -> Result<IterHalfEdge> {
         if ind_halfedge < self.halfedge_first_node.len() {
             Ok(IterHalfEdge {
@@ -81,6 +91,7 @@ impl SimplicialStructure2D {
         }
     }
 
+    /// Gets triangle iterator from index
     pub fn get_triangle(&self, ind_triangle: usize) -> Result<IterTriangle> {
         if ind_triangle < self.nb_triangles {
             Ok(IterTriangle {
@@ -92,6 +103,7 @@ impl SimplicialStructure2D {
         }
     }
 
+    /// Gets number of triangles
     pub fn get_nb_triangles(&self) -> usize {
         self.nb_triangles
     }
@@ -121,6 +133,7 @@ impl SimplicialStructure2D {
         (ind_first, ind_first + 1, ind_first + 2)
     }
 
+    /// Inserts a first triangle in the structure
     pub fn first_triangle(&mut self, nodes: [usize; 3]) -> Result<[IterTriangle; 4]> {
         if self.nb_triangles != 0 {
             return Err(anyhow::Error::msg("Already triangles in simplicial"));
@@ -168,6 +181,7 @@ impl SimplicialStructure2D {
         ])
     }
 
+    /// Inserts a new node in a triangle
     pub fn insert_node_within_triangle(
         &mut self,
         node: usize,
@@ -222,6 +236,7 @@ impl SimplicialStructure2D {
         ])
     }
 
+    /// Flips halfedge
     pub fn flip_halfedge(&mut self, ind_he: usize) -> () {
         let ind_he_opp = self.halfedge_opposite[ind_he];
         let ind_tri1 = ind_he / 3;
@@ -278,6 +293,7 @@ impl SimplicialStructure2D {
         self.halfedge_opposite[hdc] = hcd;
     }
 
+    /// Checks validity of simplicial graph (unit tests purposes)
     pub fn is_valid(&self) -> Result<bool> {
         let mut valid = true;
 
@@ -289,6 +305,7 @@ impl SimplicialStructure2D {
         Ok(valid)
     }
 
+    /// Println each triangle of the graph
     pub fn println(&self) -> () {
         for ind_tri in 0..self.nb_triangles {
             let tri = IterTriangle {
@@ -324,7 +341,7 @@ impl<'a> IterHalfEdge<'a> {
         self.simplicial.halfedge_first_node[ind_next]
     }
 
-    /// Next halfedge on same face
+    /// Next halfedge on same triangle
     pub fn next_halfedge(&self) -> IterHalfEdge<'a> {
         let on_fac = self.ind_halfedge % 3;
 
@@ -340,7 +357,7 @@ impl<'a> IterHalfEdge<'a> {
         }
     }
 
-    /// Previous halfedge on same face
+    /// Previous halfedge on same triangle
     pub fn prev_halfedge(&self) -> IterHalfEdge<'a> {
         let on_fac = self.ind_halfedge % 3;
 
@@ -355,7 +372,7 @@ impl<'a> IterHalfEdge<'a> {
         }
     }
 
-    /// Opposite halfedge: Same vertices in opposite order (on neighbor face)
+    /// Opposite halfedge: Same vertices in opposite order (on neighbor triangle)
     pub fn opposite_halfedge(&self) -> IterHalfEdge<'a> {
         let ind_opp = self.simplicial.halfedge_opposite[self.ind_halfedge];
         IterHalfEdge {
@@ -364,8 +381,8 @@ impl<'a> IterHalfEdge<'a> {
         }
     }
 
-    /// Face containing halfedge
-    pub fn face(&self) -> IterTriangle<'a> {
+    /// Triangle containing halfedge
+    pub fn triangle(&self) -> IterTriangle<'a> {
         let ind_triangle = self.ind_halfedge / 3;
         IterTriangle {
             simplicial: self.simplicial,
@@ -373,6 +390,7 @@ impl<'a> IterHalfEdge<'a> {
         }
     }
 
+    /// Checks halfedge validity (unit test purposes)
     pub fn is_valid(&self) -> bool {
         let first_node = self.first_node();
         let last_node = self.last_node();
@@ -399,6 +417,7 @@ impl<'a> IterHalfEdge<'a> {
         valid
     }
 
+    /// Halfedge to string
     pub fn to_string(&self) -> String {
         format!(
             "Edge {}: {} -> {}",
@@ -408,10 +427,12 @@ impl<'a> IterHalfEdge<'a> {
         )
     }
 
+    /// Print halfedge string
     pub fn print(&self) -> () {
         print!("{}", self.to_string());
     }
 
+    /// Println halfedge string
     pub fn println(&self) -> () {
         println!("{}", self.to_string());
     }
@@ -423,6 +444,7 @@ impl<'a> IterTriangle<'a> {
         self.ind_triangle
     }
 
+    /// Returns true if one of the nodes is infinity
     pub fn contains_infinity(&self) -> bool {
         let [he0, he1, he2] = self.halfedges();
 
@@ -458,6 +480,7 @@ impl<'a> IterTriangle<'a> {
         ]
     }
 
+    /// Triangle to string
     pub fn to_string(&self) -> String {
         let nod1 = self.simplicial.halfedge_first_node[self.ind_triangle * 3];
         let nod2 = self.simplicial.halfedge_first_node[self.ind_triangle * 3 + 1];
@@ -471,10 +494,12 @@ impl<'a> IterTriangle<'a> {
         )
     }
 
+    /// Print triangle string
     pub fn print(&self) -> () {
         print!("{}", self.to_string());
     }
 
+    /// Println triangle string
     pub fn println(&self) -> () {
         println!("{}", self.to_string());
     }

@@ -8,7 +8,9 @@ use super::simplicial_struct_2d::{self, Node, SimplicialStructure2D};
 
 /// Extended triangle, including point at infinity
 pub enum ExtendedTriangle {
+    /// Regular triangle
     Triangle([[f64; 2]; 3]),
+    /// Triangle with a point at infinity
     Segment([[f64; 2]; 2]),
 }
 
@@ -31,14 +33,17 @@ impl DelaunayStructure2D {
         }
     }
 
+    /// Gets simplicial structure
     pub fn get_simplicial(&self) -> &SimplicialStructure2D {
         &self.simpl_struct
     }
 
+    /// Gets graph vertices
     pub fn get_vertices(&self) -> &Vec<[f64; 2]> {
         &self.vertex_coordinates
     }
 
+    /// Gets extended triangle from index
     pub fn get_extended_triangle(&self, ind_triangle: usize) -> Result<ExtendedTriangle> {
         let [node1, node2, node3] = self.get_simplicial().get_triangle(ind_triangle)?.nodes();
 
@@ -193,7 +198,7 @@ impl DelaunayStructure2D {
                         y: vert[1],
                     },
                 );
-                if he.face().contains_infinity() {
+                if he.triangle().contains_infinity() {
                     if sign <= 0. {
                         return Some(he);
                     }
@@ -215,7 +220,7 @@ impl DelaunayStructure2D {
         loop {
             if let Some(he) = self.choose_he(&vec_edg, &vert) {
                 let he_opp = he.opposite_halfedge();
-                ind_tri_cur = he_opp.face().ind();
+                ind_tri_cur = he_opp.triangle().ind();
                 vec_edg.clear();
                 if side {
                     vec_edg.push(he_opp.next_halfedge());
@@ -233,11 +238,11 @@ impl DelaunayStructure2D {
 
     fn should_flip_halfedge(&self, ind_he: usize) -> Result<bool> {
         let he = self.get_simplicial().get_halfedge(ind_he)?;
-        let ind_tri_abd = he.face().ind();
+        let ind_tri_abd = he.triangle().ind();
         let node_a = he.prev_halfedge().first_node();
         let node_b = he.first_node();
 
-        let ind_tri_bcd = he.opposite_halfedge().face().ind();
+        let ind_tri_bcd = he.opposite_halfedge().triangle().ind();
         let node_c = he.opposite_halfedge().prev_halfedge().first_node();
         let node_d = he.opposite_halfedge().first_node();
 
@@ -280,6 +285,7 @@ impl DelaunayStructure2D {
         }
     }
 
+    /// Updates delaunay graph, including newly inserted vertices
     pub fn update_delaunay(&mut self) -> Result<()> {
         if self.get_vertices().len() < 3 {
             return Err(anyhow::Error::msg(
@@ -420,8 +426,13 @@ impl DelaunayStructure2D {
         Ok(())
     }
 
+    /// Checks Delaunay graph validity (unit tests purpose)
     pub fn is_valid(&self) -> Result<bool> {
         let mut valid = true;
+
+        if !self.get_simplicial().is_valid()? {
+            return Ok(false);
+        }
 
         for ind_tri in 0..self.get_simplicial().get_nb_triangles() {
             if self.is_triangle_flat(ind_tri)? {

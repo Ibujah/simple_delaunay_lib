@@ -1,7 +1,7 @@
 #[cfg(test)]
 mod delaunay_2d_test {
     use anyhow::Result;
-    use delaunay_lib::delaunay::delaunay_2d::delaunay_struct_2d;
+    use delaunay_lib::delaunay_2d::delaunay_struct_2d;
     use env_logger;
     use rand::Rng;
     use std::time::Instant;

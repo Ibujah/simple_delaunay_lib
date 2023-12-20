@@ -1,5 +1,6 @@
 use robust::{self, Coord};
 
+/// Sorts vertices along 2D Hilbert curve
 pub fn build_hilbert_curve(vertices: &Vec<[f64; 2]>, indices_to_add: &Vec<usize>) -> Vec<usize> {
     let mut curve_order = Vec::new();
 
