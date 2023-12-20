@@ -36,6 +36,7 @@ pub struct SimplicialStructure2D {
     // such that he2 = next(he1)
     // such that he3 = next(he2)
     // such that he1 = next(he3)
+    // only first node is stored (last node is the next one, taking account of the %3)
     halfedge_first_node: Vec<Node>,
     halfedge_opposite: Vec<usize>,
 
