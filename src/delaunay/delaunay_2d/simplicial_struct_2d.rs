@@ -463,17 +463,10 @@ impl<'a> IterTriangle<'a> {
     }
 
     pub fn print(&self) -> () {
-        print!("Face {}: ", self.ind());
-        let [he0, he1, he2] = self.halfedges();
-        he0.first_node().print();
-        print!(" -> ");
-        he1.first_node().print();
-        print!(" -> ");
-        he2.first_node().print();
+        print!("{}", self.to_string());
     }
 
     pub fn println(&self) -> () {
-        self.print();
-        println!("");
+        println!("{}", self.to_string());
     }
 }
