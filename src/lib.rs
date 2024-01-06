@@ -3,3 +3,6 @@
 
 /// 2D delaunay algorithm
 pub mod delaunay_2d;
+
+/// 3D delaunay algorithm
+pub mod delaunay_3d;
