@@ -27,3 +27,11 @@ path = "example/delaunay_2d.rs"
 [[example]]
 name = "hilbert_curve_2d"
 path = "example/hilbert_curve_2d.rs"
+
+[[example]]
+name = "computation_time_2d"
+path = "example/computation_time_2d.rs"
+
+[[example]]
+name = "computation_time_3d"
+path = "example/computation_time_3d.rs"
