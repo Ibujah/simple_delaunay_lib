@@ -2,16 +2,28 @@
 name = "delaunay_lib"
 version = "0.1.0"
 edition = "2021"
+licence-file = "LICENCE"
+description = "Implementation of 2D and 3D Delaunay algorithms in Rust"
+readme = "README.md"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
+robust = "1.1.0"
 anyhow = "1.0.66"
+log="0.4.20"
+
+[dev-dependencies]
+env_logger="0.10.0"
 nalgebra = "0.31.3"
 rand = "0.8.5"
 svg = "0.13.1"
-num-traits = "0.2.15"
-robust = "1.1.0"
-log="0.4.20"
-env_logger="0.10.0"
 ctor="0.2.6"
+
+[[example]]
+name = "delaunay_2d"
+path = "example/delaunay_2d.rs"
+
+[[example]]
+name = "hilbert_curve_2d"
+path = "example/hilbert_curve_2d.rs"
