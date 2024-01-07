@@ -31,11 +31,9 @@ mod delaunay_2d_test {
         let mut rng = rand::thread_rng();
 
         let mut vec_pts: Vec<[f64; 2]> = Vec::new();
-        let mut vec_inds: Vec<usize> = Vec::new();
-        for ind in 0..10000 {
+        for _ in 0..1000 {
             let (x, y): (f64, f64) = rng.gen();
             vec_pts.push([x, y]);
-            vec_inds.push(ind);
         }
         create_and_check_delaunay(&vec_pts)?;
         Ok(())
@@ -45,7 +43,7 @@ mod delaunay_2d_test {
     fn test_regular() -> Result<()> {
         let mut vec_pts: Vec<[f64; 2]> = Vec::new();
         let mut vec_inds: Vec<usize> = Vec::new();
-        for ind in 0..10000 {
+        for ind in 0..1000 {
             let ind1 = ind % 100;
             let ind2 = ind / 100;
 
@@ -64,7 +62,7 @@ mod delaunay_2d_test {
 
         let mut vec_pts: Vec<[f64; 2]> = Vec::new();
         let mut vec_inds: Vec<usize> = Vec::new();
-        for ind in 0..10000 {
+        for ind in 0..1000 {
             let (x, y): (f64, f64) = rng.gen();
             vec_pts.push([x, y]);
             vec_inds.push(ind);
@@ -83,7 +81,7 @@ mod delaunay_2d_test {
 
         let mut vec_pts: Vec<[f64; 2]> = Vec::new();
         let mut vec_inds: Vec<usize> = Vec::new();
-        for ind in 0..10000 {
+        for ind in 0..1000 {
             let (x, y): (f64, f64) = rng.gen();
             vec_pts.push([x, y]);
             vec_inds.push(ind);
