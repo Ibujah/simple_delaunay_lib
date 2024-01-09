@@ -8,6 +8,10 @@ readme = "README.md"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
+[lib]
+name = "simple_delaunay_lib"
+path = "src/lib.rs"
+
 [dependencies]
 robust = "1.1.0"
 anyhow = "1.0.66"
