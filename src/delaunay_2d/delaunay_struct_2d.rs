@@ -18,8 +18,9 @@ pub enum ExtendedTriangle {
 pub struct DelaunayStructure2D {
     simpl_struct: simplicial_struct_2d::SimplicialStructure2D,
     vertex_coordinates: Vec<[f64; 2]>,
-    indices_to_insert: Vec<usize>,
-    inserted_indices: Vec<usize>,
+    walk_ms: u128,
+    insert_ms: u128,
+    flip_ms: u128,
 }
 
 impl DelaunayStructure2D {
@@ -28,8 +29,9 @@ impl DelaunayStructure2D {
         DelaunayStructure2D {
             simpl_struct: simplicial_struct_2d::SimplicialStructure2D::new(),
             vertex_coordinates: Vec::new(),
-            indices_to_insert: Vec::new(),
-            inserted_indices: Vec::new(),
+            walk_ms: 0,
+            insert_ms: 0,
+            flip_ms: 0,
         }
     }
 
@@ -91,20 +93,6 @@ impl DelaunayStructure2D {
         };
 
         Ok(ext_tri)
-    }
-
-    /// Adds a vertex to insert within the structure (need to call update_delaunay())
-    pub fn add_vertex_to_insert(&mut self, to_insert: [f64; 2]) -> () {
-        self.indices_to_insert.push(self.vertex_coordinates.len());
-        self.vertex_coordinates.push(to_insert);
-    }
-
-    /// Adds a set of vertices to insert within the structure (need to call update_delaunay())
-    pub fn add_vertices_to_insert(&mut self, to_insert: &Vec<[f64; 2]>) -> () {
-        for &vert in to_insert.iter() {
-            self.indices_to_insert.push(self.vertex_coordinates.len());
-            self.vertex_coordinates.push(vert);
-        }
     }
 
     fn is_vertex_strict_in_circle(&self, ind_vert: usize, ind_tri: usize) -> Result<bool> {
@@ -285,32 +273,72 @@ impl DelaunayStructure2D {
         }
     }
 
-    /// Updates delaunay graph, including newly inserted vertices
-    pub fn update_delaunay(&mut self) -> Result<()> {
-        if self.get_vertices().len() < 3 {
-            return Err(anyhow::Error::msg(
-                "Needs at least 3 vertices to compute Delaunay",
-            ));
+    fn insert_vertex_helper(&mut self, ind_vertex: usize, near_to: usize) -> Result<()> {
+        let now = Instant::now();
+        let ind_triangle = self.walk_by_visibility(ind_vertex, near_to)?;
+
+        let duration = now.elapsed();
+        let milli = duration.as_nanos();
+        self.walk_ms = self.walk_ms + milli;
+
+        let now = Instant::now();
+        let mut he_to_evaluate = Vec::new();
+        let [he1, he2, he3] = self.simpl_struct.get_triangle(ind_triangle)?.halfedges();
+        he_to_evaluate.push(he1.opposite_halfedge().ind());
+        he_to_evaluate.push(he2.opposite_halfedge().ind());
+        he_to_evaluate.push(he3.opposite_halfedge().ind());
+        let _ = self
+            .simpl_struct
+            .insert_node_within_triangle(ind_vertex, ind_triangle)?;
+
+        let duration = now.elapsed();
+        let milli = duration.as_nanos();
+        self.insert_ms = self.insert_ms + milli;
+
+        let now = Instant::now();
+        while let Some(ind_he) = he_to_evaluate.pop() {
+            if self.should_flip_halfedge(ind_he)? {
+                let he = self.get_simplicial().get_halfedge(ind_he)?;
+                let ind_he_add1 = he.prev_halfedge().opposite_halfedge().ind();
+                let ind_he_add2 = he.next_halfedge().opposite_halfedge().ind();
+                let ind_he_add3 = he
+                    .opposite_halfedge()
+                    .prev_halfedge()
+                    .opposite_halfedge()
+                    .ind();
+                let ind_he_add4 = he
+                    .opposite_halfedge()
+                    .next_halfedge()
+                    .opposite_halfedge()
+                    .ind();
+                self.simpl_struct.flip_halfedge(ind_he);
+                he_to_evaluate.push(ind_he_add1);
+                he_to_evaluate.push(ind_he_add2);
+                he_to_evaluate.push(ind_he_add3);
+                he_to_evaluate.push(ind_he_add4);
+            }
         }
 
-        let now = Instant::now();
-        self.indices_to_insert = build_hilbert_curve(self.get_vertices(), &self.indices_to_insert);
         let duration = now.elapsed();
-        let nano = duration.as_nanos();
-        log::info!("Hilbert curve computed in {}ms", nano as f32 / 1e6);
+        let milli = duration.as_nanos();
+        self.flip_ms = self.flip_ms + milli;
 
+        Ok(())
+    }
+
+    fn insert_first_triangle(&mut self, indices_to_insert: &mut Vec<usize>) -> Result<()> {
         let now = Instant::now();
         // first triangle insertion
-        if self.get_vertices().len() == self.indices_to_insert.len() {
-            let ind1 = self.indices_to_insert.pop().unwrap();
-            let ind2 = self.indices_to_insert.pop().unwrap();
+        if self.get_vertices().len() == indices_to_insert.len() {
+            let ind1 = indices_to_insert.pop().unwrap();
+            let ind2 = indices_to_insert.pop().unwrap();
             let pt1 = self.get_vertices()[ind1];
             let pt2 = self.get_vertices()[ind2];
 
             let mut aligned = Vec::new();
 
             loop {
-                if let Some(ind3) = self.indices_to_insert.pop() {
+                if let Some(ind3) = indices_to_insert.pop() {
                     let pt3 = self.get_vertices()[ind3];
 
                     let sign = robust::orient2d(
@@ -329,14 +357,8 @@ impl DelaunayStructure2D {
                     );
 
                     if sign > 0. {
-                        self.inserted_indices.push(ind1);
-                        self.inserted_indices.push(ind2);
-                        self.inserted_indices.push(ind3);
                         self.simpl_struct.first_triangle([ind1, ind2, ind3])?
                     } else if sign < 0. {
-                        self.inserted_indices.push(ind1);
-                        self.inserted_indices.push(ind2);
-                        self.inserted_indices.push(ind3);
                         self.simpl_struct.first_triangle([ind1, ind3, ind2])?
                     } else {
                         aligned.push(ind3);
@@ -351,77 +373,73 @@ impl DelaunayStructure2D {
                 break;
             }
 
-            self.indices_to_insert.append(&mut aligned);
+            indices_to_insert.append(&mut aligned);
         }
         let duration = now.elapsed();
         let nano = duration.as_nanos();
         log::info!("First triangle computed in {}ms", nano as f32 / 1e6);
+        Ok(())
+    }
 
-        let mut walk_ms = 0;
-        let mut insert_ms = 0;
-        let mut flip_ms = 0;
-        let mut step = 0;
+    /// insert a single vertex in the structure
+    pub fn insert_vertex(&mut self, vertex: [f64; 2], near_to: Option<usize>) -> Result<()> {
+        if self.simpl_struct.get_nb_triangles() == 0 {
+            return Err(anyhow::Error::msg(
+                "Needs at least 1 triangle to insert a single point",
+            ));
+        }
+        let indices_to_insert = self.vertex_coordinates.len();
+        self.vertex_coordinates.push(vertex);
+        self.insert_vertex_helper(
+            indices_to_insert,
+            near_to.unwrap_or(self.simpl_struct.get_nb_triangles() - 1),
+        )?;
+        log::info!("Walks computed in {}ms", self.walk_ms as f32 / 1e6);
+        log::info!("Insertions computed in {}ms", self.insert_ms as f32 / 1e6);
+        log::info!("Flips computed in {}ms", self.flip_ms as f32 / 1e6);
+        Ok(())
+    }
+
+    /// insert a set of vertices in the structure
+    pub fn insert_vertices(
+        &mut self,
+        to_insert: &Vec<[f64; 2]>,
+        reorder_points: bool,
+    ) -> Result<()> {
+        let mut indices_to_insert = Vec::new();
+        for &vert in to_insert.iter() {
+            indices_to_insert.push(self.vertex_coordinates.len());
+            self.vertex_coordinates.push(vert);
+        }
+
+        if self.get_vertices().len() < 3 {
+            return Err(anyhow::Error::msg(
+                "Needs at least 3 vertices to compute Delaunay",
+            ));
+        }
+
+        if reorder_points {
+            let now = Instant::now();
+            indices_to_insert = build_hilbert_curve(self.get_vertices(), &indices_to_insert);
+            let duration = now.elapsed();
+            let nano = duration.as_nanos();
+            log::info!("Hilbert curve computed in {}ms", nano as f32 / 1e6);
+        }
+
+        if self.simpl_struct.get_nb_triangles() == 0 {
+            self.insert_first_triangle(&mut indices_to_insert)?;
+        }
+
         loop {
-            if let Some(ind_v) = self.indices_to_insert.pop() {
-                let now = Instant::now();
-                let ind_triangle =
-                    self.walk_by_visibility(ind_v, self.simpl_struct.get_nb_triangles() - 1)?;
-
-                let duration = now.elapsed();
-                let milli = duration.as_nanos();
-                walk_ms = walk_ms + milli;
-
-                step = step + 1;
-
-                let now = Instant::now();
-                let mut he_to_evaluate = Vec::new();
-                let [he1, he2, he3] = self.simpl_struct.get_triangle(ind_triangle)?.halfedges();
-                he_to_evaluate.push(he1.opposite_halfedge().ind());
-                he_to_evaluate.push(he2.opposite_halfedge().ind());
-                he_to_evaluate.push(he3.opposite_halfedge().ind());
-                let _ = self
-                    .simpl_struct
-                    .insert_node_within_triangle(ind_v, ind_triangle)?;
-
-                let duration = now.elapsed();
-                let milli = duration.as_nanos();
-                insert_ms = insert_ms + milli;
-
-                let now = Instant::now();
-                while let Some(ind_he) = he_to_evaluate.pop() {
-                    if self.should_flip_halfedge(ind_he)? {
-                        let he = self.get_simplicial().get_halfedge(ind_he)?;
-                        let ind_he_add1 = he.prev_halfedge().opposite_halfedge().ind();
-                        let ind_he_add2 = he.next_halfedge().opposite_halfedge().ind();
-                        let ind_he_add3 = he
-                            .opposite_halfedge()
-                            .prev_halfedge()
-                            .opposite_halfedge()
-                            .ind();
-                        let ind_he_add4 = he
-                            .opposite_halfedge()
-                            .next_halfedge()
-                            .opposite_halfedge()
-                            .ind();
-                        self.simpl_struct.flip_halfedge(ind_he);
-                        he_to_evaluate.push(ind_he_add1);
-                        he_to_evaluate.push(ind_he_add2);
-                        he_to_evaluate.push(ind_he_add3);
-                        he_to_evaluate.push(ind_he_add4);
-                    }
-                }
-                self.inserted_indices.push(ind_v);
-
-                let duration = now.elapsed();
-                let milli = duration.as_nanos();
-                flip_ms = flip_ms + milli;
+            if let Some(ind_vertex) = indices_to_insert.pop() {
+                self.insert_vertex_helper(ind_vertex, self.simpl_struct.get_nb_triangles() - 1)?;
             } else {
                 break;
             }
         }
-        log::info!("Walks computed in {}ms", walk_ms as f32 / 1e6);
-        log::info!("Insertions computed in {}ms", insert_ms as f32 / 1e6);
-        log::info!("Flips computed in {}ms", flip_ms as f32 / 1e6);
+        log::info!("Walks computed in {}ms", self.walk_ms as f32 / 1e6);
+        log::info!("Insertions computed in {}ms", self.insert_ms as f32 / 1e6);
+        log::info!("Flips computed in {}ms", self.flip_ms as f32 / 1e6);
 
         Ok(())
     }
@@ -440,7 +458,7 @@ impl DelaunayStructure2D {
                 self.get_simplicial().get_triangle(ind_tri)?.println();
                 valid = false;
             }
-            for &ind_vert in self.inserted_indices.iter() {
+            for ind_vert in 0..self.vertex_coordinates.len() {
                 let in_circle = self.is_vertex_strict_in_circle(ind_vert, ind_tri)?;
                 if in_circle {
                     log::error!("Non Delaunay triangle: ");

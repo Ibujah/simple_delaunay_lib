@@ -26,8 +26,7 @@ fn main() -> Result<()> {
 
         let now = Instant::now();
         let mut del_struct = DelaunayStructure3D::new();
-        del_struct.add_vertices_to_insert(&vec_pts);
-        del_struct.update_delaunay()?;
+        del_struct.insert_vertices(&vec_pts, true)?;
         let duration = now.elapsed();
         let milli = duration.as_millis();
 

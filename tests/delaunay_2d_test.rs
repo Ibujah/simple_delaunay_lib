@@ -14,8 +14,7 @@ mod delaunay_2d_test {
     fn create_and_check_delaunay(vec_pts: &Vec<[f64; 2]>) -> Result<()> {
         let now = Instant::now();
         let mut del_struct = delaunay_struct_2d::DelaunayStructure2D::new();
-        del_struct.add_vertices_to_insert(&vec_pts);
-        del_struct.update_delaunay()?;
+        del_struct.insert_vertices(&vec_pts, true)?;
         let duration = now.elapsed();
         let milli = duration.as_millis();
 
@@ -69,8 +68,7 @@ mod delaunay_2d_test {
         }
         let now = Instant::now();
         let mut del_struct = delaunay_struct_2d::DelaunayStructure2D::new();
-        del_struct.add_vertices_to_insert(&vec_pts);
-        del_struct.update_delaunay()?;
+        del_struct.insert_vertices(&vec_pts, true)?;
         let duration = now.elapsed();
         let milli = duration.as_millis();
 
@@ -87,9 +85,7 @@ mod delaunay_2d_test {
             vec_inds.push(ind);
         }
         let now = Instant::now();
-        let mut del_struct = delaunay_struct_2d::DelaunayStructure2D::new();
-        del_struct.add_vertices_to_insert(&vec_pts);
-        del_struct.update_delaunay()?;
+        del_struct.insert_vertices(&vec_pts, true)?;
         let duration = now.elapsed();
         let milli = duration.as_millis();
 

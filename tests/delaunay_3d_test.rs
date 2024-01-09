@@ -15,8 +15,7 @@ mod delaunay_3d_test {
     fn create_and_check_delaunay(vec_pts: &Vec<[f64; 3]>) -> Result<()> {
         let now = Instant::now();
         let mut del_struct = delaunay_struct_3d::DelaunayStructure3D::new();
-        del_struct.add_vertices_to_insert(&vec_pts);
-        del_struct.update_delaunay()?;
+        del_struct.insert_vertices(&vec_pts, true)?;
         let duration = now.elapsed();
         let milli = duration.as_millis();
 
@@ -57,6 +56,47 @@ mod delaunay_3d_test {
             vec_inds.push(ind);
         }
         create_and_check_delaunay(&vec_pts)?;
+        Ok(())
+    }
+
+    #[test]
+    fn test_update() -> Result<()> {
+        let mut rng = rand::thread_rng();
+
+        let mut vec_pts: Vec<[f64; 3]> = Vec::new();
+        let mut vec_inds: Vec<usize> = Vec::new();
+        for ind in 0..1000 {
+            let (x, y, z): (f64, f64, f64) = rng.gen();
+            vec_pts.push([x, y, z]);
+            vec_inds.push(ind);
+        }
+        let now = Instant::now();
+        let mut del_struct = delaunay_struct_3d::DelaunayStructure3D::new();
+        del_struct.insert_vertices(&vec_pts, true)?;
+        let duration = now.elapsed();
+        let milli = duration.as_millis();
+
+        log::info!("Delaunay computed in {}ms", milli);
+
+        log::info!("Checking delaunay");
+        assert!(del_struct.is_valid()?);
+
+        let mut vec_pts: Vec<[f64; 3]> = Vec::new();
+        let mut vec_inds: Vec<usize> = Vec::new();
+        for ind in 0..1000 {
+            let (x, y, z): (f64, f64, f64) = rng.gen();
+            vec_pts.push([x, y, z]);
+            vec_inds.push(ind);
+        }
+        let now = Instant::now();
+        del_struct.insert_vertices(&vec_pts, true)?;
+        let duration = now.elapsed();
+        let milli = duration.as_millis();
+
+        log::info!("Delaunay update computed in {}ms", milli);
+
+        log::info!("Checking delaunay");
+        assert!(del_struct.is_valid()?);
         Ok(())
     }
 }
