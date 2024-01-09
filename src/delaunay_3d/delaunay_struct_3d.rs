@@ -17,8 +17,8 @@ pub enum ExtendedTetrahedron {
 pub struct DelaunayStructure3D {
     simpl_struct: SimplicialStructure3D,
     vertex_coordinates: Vec<[f64; 3]>,
-    indices_to_insert: Vec<usize>,
-    inserted_indices: Vec<usize>,
+    walk_ns: u128,
+    insert_ns: u128,
 }
 
 impl DelaunayStructure3D {
@@ -27,8 +27,8 @@ impl DelaunayStructure3D {
         DelaunayStructure3D {
             simpl_struct: SimplicialStructure3D::new(),
             vertex_coordinates: Vec::new(),
-            indices_to_insert: Vec::new(),
-            inserted_indices: Vec::new(),
+            walk_ns: 0,
+            insert_ns: 0,
         }
     }
 
@@ -92,20 +92,6 @@ impl DelaunayStructure3D {
         };
 
         Ok(ext_tri)
-    }
-
-    /// Adds a vertex to insert within the structure (need to call update_delaunay())
-    pub fn add_vertex_to_insert(&mut self, to_insert: [f64; 3]) -> () {
-        self.indices_to_insert.push(self.vertex_coordinates.len());
-        self.vertex_coordinates.push(to_insert);
-    }
-
-    /// Adds a set of vertices to insert within the structure (need to call update_delaunay())
-    pub fn add_vertices_to_insert(&mut self, to_insert: &Vec<[f64; 3]>) -> () {
-        for &vert in to_insert.iter() {
-            self.indices_to_insert.push(self.vertex_coordinates.len());
-            self.vertex_coordinates.push(vert);
-        }
     }
 
     fn is_vertex_in_sphere(&self, ind_vert: usize, ind_tetra: usize) -> Result<bool> {
@@ -349,34 +335,35 @@ impl DelaunayStructure3D {
         self.simpl_struct.bw_insert_node(nod)
     }
 
-    /// Updates delaunay graph, including newly inserted vertices
-    pub fn update_delaunay(&mut self) -> Result<()> {
-        if self.get_vertices().len() < 3 {
-            return Err(anyhow::Error::msg(
-                "Needs at least 3 vertices to compute Delaunay",
-            ));
-        }
-
+    fn insert_vertex_helper(&mut self, ind_vertex: usize, near_to: usize) -> Result<usize> {
         let now = Instant::now();
-        self.indices_to_insert =
-            build_hilbert_curve_3d(self.get_vertices(), &self.indices_to_insert);
+        let ind_tetrahedron = self.walk_by_visibility(ind_vertex, near_to)?;
         let duration = now.elapsed();
         let nano = duration.as_nanos();
-        log::info!("Hilbert curve computed in {}ms", nano as f32 / 1e6);
+        self.walk_ns = self.walk_ns + nano;
 
         let now = Instant::now();
-        // first triangle insertion
-        if self.get_vertices().len() == self.indices_to_insert.len() {
-            let ind1 = self.indices_to_insert.pop().unwrap();
-            let ind2 = self.indices_to_insert.pop().unwrap();
+        let added_tetra = self.insert_bw(ind_vertex, ind_tetrahedron)?;
+        let duration = now.elapsed();
+        let nano = duration.as_nanos();
+        self.insert_ns = self.insert_ns + nano;
+
+        Ok(added_tetra[0])
+    }
+
+    fn insert_first_tetrahedron(&mut self, indices_to_insert: &mut Vec<usize>) -> Result<()> {
+        let now = Instant::now();
+        // first tetrahedron insertion
+        if self.get_vertices().len() == indices_to_insert.len() {
+            let ind1 = indices_to_insert.pop().unwrap();
+            let ind2 = indices_to_insert.pop().unwrap();
             let pt1 = self.get_vertices()[ind1];
             let pt2 = self.get_vertices()[ind2];
 
             let mut aligned = Vec::new();
             let vec12 = [pt2[0] - pt1[0], pt2[1] - pt1[1], pt2[2] - pt1[2]];
 
-            let i3 = self
-                .indices_to_insert
+            let i3 = indices_to_insert
                 .iter()
                 .rev()
                 .enumerate()
@@ -388,11 +375,11 @@ impl DelaunayStructure3D {
                 .map(|(e, _)| e)
                 .unwrap();
 
-            let ind3 = self.indices_to_insert.remove(i3);
+            let ind3 = indices_to_insert.remove(i3);
             let pt3 = self.get_vertices()[ind3];
 
             loop {
-                if let Some(ind4) = self.indices_to_insert.pop() {
+                if let Some(ind4) = indices_to_insert.pop() {
                     let pt4 = self.get_vertices()[ind4];
 
                     let sign = robust::orient3d(
@@ -419,17 +406,9 @@ impl DelaunayStructure3D {
                     );
 
                     if sign > 0. {
-                        self.inserted_indices.push(ind1);
-                        self.inserted_indices.push(ind2);
-                        self.inserted_indices.push(ind3);
-                        self.inserted_indices.push(ind4);
                         self.simpl_struct
                             .first_tetrahedron([ind1, ind2, ind3, ind4])?
                     } else if sign < 0. {
-                        self.inserted_indices.push(ind1);
-                        self.inserted_indices.push(ind2);
-                        self.inserted_indices.push(ind3);
-                        self.inserted_indices.push(ind4);
                         self.simpl_struct
                             .first_tetrahedron([ind1, ind3, ind2, ind4])?
                     } else {
@@ -442,43 +421,74 @@ impl DelaunayStructure3D {
 
                 break;
             }
-            self.indices_to_insert.append(&mut aligned);
+            indices_to_insert.append(&mut aligned);
         }
-        self.is_valid()?;
         let duration = now.elapsed();
         let nano = duration.as_nanos();
         log::info!("First tetrahedron computed in {}ms", nano as f32 / 1e6);
+        Ok(())
+    }
 
-        let mut walk_ns = 0;
-        let mut insert_ns = 0;
-        let mut step = 0;
+    /// insert a single vertex in the structure
+    pub fn insert_vertex(&mut self, vertex: [f64; 3], near_to: Option<usize>) -> Result<()> {
+        if self.simpl_struct.get_nb_tetrahedra() == 0 {
+            return Err(anyhow::Error::msg(
+                "Needs at least 1 tetrahedron to insert a single point",
+            ));
+        }
+        let indices_to_insert = self.vertex_coordinates.len();
+        self.vertex_coordinates.push(vertex);
+        self.insert_vertex_helper(
+            indices_to_insert,
+            near_to.unwrap_or(self.simpl_struct.get_nb_tetrahedra() - 1),
+        )?;
+        self.simpl_struct.clean_to_rem()?;
+        log::info!("Walks computed in {}ms", self.walk_ns as f32 / 1e6);
+        log::info!("Insertions computed in {}ms", self.insert_ns as f32 / 1e6);
+        Ok(())
+    }
+
+    /// Updates delaunay graph, including newly inserted vertices
+    pub fn insert_vertices(
+        &mut self,
+        to_insert: &Vec<[f64; 3]>,
+        reorder_points: bool,
+    ) -> Result<()> {
+        let mut indices_to_insert = Vec::new();
+        for &vert in to_insert.iter() {
+            indices_to_insert.push(self.vertex_coordinates.len());
+            self.vertex_coordinates.push(vert);
+        }
+
+        if self.get_vertices().len() < 4 {
+            return Err(anyhow::Error::msg(
+                "Needs at least 4 vertices to compute Delaunay",
+            ));
+        }
+
+        if reorder_points {
+            let now = Instant::now();
+            indices_to_insert = build_hilbert_curve_3d(self.get_vertices(), &indices_to_insert);
+            let duration = now.elapsed();
+            let nano = duration.as_nanos();
+            log::info!("Hilbert curve computed in {}ms", nano as f32 / 1e6);
+        }
+
+        if self.simpl_struct.get_nb_tetrahedra() == 0 {
+            self.insert_first_tetrahedron(&mut indices_to_insert)?;
+        }
+
         let mut last_added = self.simpl_struct.get_nb_tetrahedra() - 1;
         loop {
-            if let Some(ind_v) = self.indices_to_insert.pop() {
-                let now = Instant::now();
-                let ind_tetrahedron = self.walk_by_visibility(ind_v, last_added)?;
-
-                let duration = now.elapsed();
-                let nano = duration.as_nanos();
-                walk_ns = walk_ns + nano;
-
-                step = step + 1;
-
-                let now = Instant::now();
-                let added_tetra = self.insert_bw(ind_v, ind_tetrahedron)?;
-                let duration = now.elapsed();
-                let nano = duration.as_nanos();
-                insert_ns = insert_ns + nano;
-                last_added = added_tetra[0];
-
-                self.inserted_indices.push(ind_v);
+            if let Some(ind_vertex) = indices_to_insert.pop() {
+                last_added = self.insert_vertex_helper(ind_vertex, last_added)?;
             } else {
                 break;
             }
         }
         self.simpl_struct.clean_to_rem()?;
-        log::info!("Walks computed in {}ms", walk_ns as f32 / 1e6);
-        log::info!("Insertions computed in {}ms", insert_ns as f32 / 1e6);
+        log::info!("Walks computed in {}ms", self.walk_ns as f32 / 1e6);
+        log::info!("Insertions computed in {}ms", self.insert_ns as f32 / 1e6);
 
         Ok(())
     }
@@ -501,7 +511,7 @@ impl DelaunayStructure3D {
                 );
                 continue;
             }
-            for &ind_vert in self.inserted_indices.iter() {
+            for ind_vert in 0..self.vertex_coordinates.len() {
                 let in_sphere = self.is_vertex_strict_in_sphere(ind_vert, ind_tetra)?;
                 if in_sphere {
                     log::error!(

@@ -15,8 +15,7 @@ mod delaunay_3d_test {
     fn create_and_check_delaunay(vec_pts: &Vec<[f64; 3]>) -> Result<()> {
         let now = Instant::now();
         let mut del_struct = delaunay_struct_3d::DelaunayStructure3D::new();
-        del_struct.add_vertices_to_insert(&vec_pts);
-        del_struct.update_delaunay()?;
+        del_struct.insert_vertices(&vec_pts, true)?;
         let duration = now.elapsed();
         let milli = duration.as_millis();
 
