@@ -85,7 +85,6 @@ mod delaunay_2d_test {
             vec_inds.push(ind);
         }
         let now = Instant::now();
-        let mut del_struct = delaunay_struct_2d::DelaunayStructure2D::new();
         del_struct.insert_vertices(&vec_pts, true)?;
         let duration = now.elapsed();
         let milli = duration.as_millis();
