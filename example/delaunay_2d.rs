@@ -9,8 +9,8 @@ use svg::node::element;
 use svg::node::element::path::Data;
 use svg::Document;
 
-use delaunay_lib::delaunay_2d::delaunay_struct_2d::{DelaunayStructure2D, ExtendedTriangle};
-use delaunay_lib::delaunay_2d::simplicial_struct_2d::Node;
+use simple_delaunay_lib::delaunay_2d::delaunay_struct_2d::{DelaunayStructure2D, ExtendedTriangle};
+use simple_delaunay_lib::delaunay_2d::simplicial_struct_2d::Node;
 
 fn circle_center_and_radius(
     pt1: &Vector2<f64>,

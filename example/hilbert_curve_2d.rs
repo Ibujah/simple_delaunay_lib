@@ -6,7 +6,7 @@ use svg::node::element;
 use svg::node::element::path::Data;
 use svg::Document;
 
-use delaunay_lib::delaunay_2d::geometry_operations_2d::build_hilbert_curve;
+use simple_delaunay_lib::delaunay_2d::geometry_operations_2d::build_hilbert_curve;
 
 fn main() -> Result<()> {
     env_logger::init();

@@ -61,20 +61,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "delaunay_lib"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "ctor",
- "env_logger",
- "log",
- "nalgebra",
- "rand",
- "robust",
- "svg",
-]
-
-[[package]]
 name = "env_logger"
 version = "0.10.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -365,6 +351,20 @@ dependencies = [
  "num-traits",
  "paste",
  "wide",
+]
+
+[[package]]
+name = "simple_delaunay_lib"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "ctor",
+ "env_logger",
+ "log",
+ "nalgebra",
+ "rand",
+ "robust",
+ "svg",
 ]
 
 [[package]]

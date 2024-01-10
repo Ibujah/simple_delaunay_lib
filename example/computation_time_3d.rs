@@ -3,7 +3,7 @@ use env_logger;
 use rand::Rng;
 use std::time::Instant;
 
-use delaunay_lib::delaunay_3d::delaunay_struct_3d::DelaunayStructure3D;
+use simple_delaunay_lib::delaunay_3d::delaunay_struct_3d::DelaunayStructure3D;
 
 fn generate_random_vertices(nb_vert: usize) -> Vec<[f64; 3]> {
     let mut rng = rand::thread_rng();
