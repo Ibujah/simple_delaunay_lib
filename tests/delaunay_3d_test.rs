@@ -5,7 +5,7 @@ mod delaunay_3d_test {
     use rand::Rng;
     use std::time::Instant;
 
-    use delaunay_lib::delaunay_3d::delaunay_struct_3d;
+    use simple_delaunay_lib::delaunay_3d::delaunay_struct_3d;
 
     #[ctor::ctor]
     fn init() {
