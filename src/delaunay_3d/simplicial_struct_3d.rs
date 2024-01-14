@@ -114,6 +114,14 @@ impl SimplicialStructure3D {
         }
     }
 
+    fn halfedge(&self, ind_halftriangle: usize, ind_halfedge: usize) -> IterHalfEdge<'_> {
+        IterHalfEdge {
+            simplicial: self,
+            ind_halftriangle,
+            ind_halfedge,
+        }
+    }
+
     fn halftriangle(&self, ind_halftriangle: usize) -> IterHalfTriangle {
         IterHalfTriangle {
             simplicial: self,
@@ -149,6 +157,84 @@ impl SimplicialStructure3D {
     /// Gets number of triangles
     pub fn get_nb_tetrahedra(&self) -> usize {
         self.nb_tetrahedra
+    }
+
+    /// Gets halfedges containing a pair of nodes
+    pub fn get_halfedge_containing(&self, node1: &Node, node2: &Node) -> Vec<IterHalfEdge> {
+        let mut vec_edg = Vec::new();
+        for i in 0..self.nb_tetrahedra {
+            let first_nod = i << 2;
+            let mut sub_ind_v1 = 4;
+            let mut sub_ind_v2 = 4;
+            for j in 0..4 {
+                if self.tet_nodes[first_nod + j].equals(node1) {
+                    sub_ind_v1 = j;
+                } else if self.tet_nodes[first_nod + j].equals(node2) {
+                    sub_ind_v2 = j;
+                }
+            }
+            if sub_ind_v1 == 4 || sub_ind_v2 == 4 {
+                continue;
+            }
+            for j in 0..4 {
+                if j == sub_ind_v1 || j == sub_ind_v2 {
+                    continue;
+                }
+                for k in 0..3 {
+                    if TRIANGLE_SUBINDICES[j][k] == sub_ind_v1
+                        && TRIANGLE_SUBINDICES[j][(k + 1) % 3] == sub_ind_v2
+                    {
+                        vec_edg.push(self.halfedge(first_nod + j, k));
+                        break;
+                    }
+                }
+            }
+        }
+
+        vec_edg
+    }
+
+    /// Gets halftriangle containing a pair of nodes
+    pub fn get_halftriangle_containing(
+        &self,
+        node1: &Node,
+        node2: &Node,
+        node3: &Node,
+    ) -> Option<IterHalfTriangle> {
+        for i in 0..self.nb_tetrahedra {
+            let first_nod = i << 2;
+            let mut sub_ind_v1 = 4;
+            let mut sub_ind_v2 = 4;
+            let mut sub_ind_v3 = 4;
+            for j in 0..4 {
+                if self.tet_nodes[first_nod + j].equals(node1) {
+                    sub_ind_v1 = j;
+                } else if self.tet_nodes[first_nod + j].equals(node2) {
+                    sub_ind_v2 = j;
+                } else if self.tet_nodes[first_nod + j].equals(node3) {
+                    sub_ind_v3 = j;
+                }
+            }
+            if sub_ind_v1 == 4 || sub_ind_v2 == 4 || sub_ind_v3 == 4 {
+                continue;
+            }
+            for j in 0..4 {
+                if j == sub_ind_v1 || j == sub_ind_v2 || j == sub_ind_v3 {
+                    continue;
+                }
+                for k in 0..3 {
+                    if TRIANGLE_SUBINDICES[j][k] == sub_ind_v1
+                        && TRIANGLE_SUBINDICES[j][(k + 1) % 3] == sub_ind_v2
+                        && TRIANGLE_SUBINDICES[j][(k + 2) % 3] == sub_ind_v3
+                    {
+                        return Some(self.halftriangle(first_nod + j));
+                    }
+                }
+                return Some(self.halftriangle(first_nod + j).opposite());
+            }
+        }
+
+        None
     }
 
     /// Gets tetrahedra containing a specific node
