@@ -1,3 +1,5 @@
+use std::vec;
+
 use anyhow::Result;
 use log;
 
@@ -112,25 +114,33 @@ impl SimplicialStructure3D {
         }
     }
 
+    fn halftriangle(&self, ind_halftriangle: usize) -> IterHalfTriangle {
+        IterHalfTriangle {
+            simplicial: self,
+            ind_halftriangle,
+        }
+    }
+
     /// Gets halfedge iterator from index
     pub fn get_halftriangle(&self, ind_halftriangle: usize) -> Result<IterHalfTriangle> {
         if ind_halftriangle < self.halftriangle_opposite.len() {
-            Ok(IterHalfTriangle {
-                simplicial: self,
-                ind_halftriangle,
-            })
+            Ok(self.halftriangle(ind_halftriangle))
         } else {
             Err(anyhow::Error::msg("Halftriangle value not in simplicial"))
+        }
+    }
+
+    fn tetrahedron(&self, ind_tetrahedron: usize) -> IterTetrahedron {
+        IterTetrahedron {
+            simplicial: self,
+            ind_tetrahedron,
         }
     }
 
     /// Gets tetrahedron iterator from index
     pub fn get_tetrahedron(&self, ind_tetrahedron: usize) -> Result<IterTetrahedron> {
         if ind_tetrahedron < self.nb_tetrahedra {
-            Ok(IterTetrahedron {
-                simplicial: self,
-                ind_tetrahedron,
-            })
+            Ok(self.tetrahedron(ind_tetrahedron))
         } else {
             Err(anyhow::Error::msg("Tetrahedron value not in simplicial"))
         }
@@ -139,6 +149,22 @@ impl SimplicialStructure3D {
     /// Gets number of triangles
     pub fn get_nb_tetrahedra(&self) -> usize {
         self.nb_tetrahedra
+    }
+
+    /// Gets tetrahedra containing a specific node
+    pub fn get_tetrahedra_containing(&self, node: &Node) -> Vec<IterTetrahedron> {
+        let mut vec_tet = Vec::new();
+        for i in 0..self.nb_tetrahedra {
+            let first_nod = i << 2;
+            for j in 0..4 {
+                if self.tet_nodes[first_nod + j].equals(node) {
+                    vec_tet.push(self.tetrahedron(i));
+                    break;
+                }
+            }
+        }
+
+        vec_tet
     }
 
     /// Starts BW insertion, setting a first tetrahedron to remove
@@ -204,7 +230,7 @@ impl SimplicialStructure3D {
 
         // 1 - find boundary triangle
         let ind_tri_first = if let Some(&ind_tetra_keep) = self.tet_to_keep.last() {
-            let tetra = self.get_tetrahedron(ind_tetra_keep)?;
+            let tetra = self.tetrahedron(ind_tetra_keep);
             let tris = tetra.halftriangles();
             if tris[0].opposite().tetrahedron().should_rem() {
                 tris[0].ind()
@@ -401,7 +427,7 @@ impl SimplicialStructure3D {
             let ind_tri_opp3 = self.halftriangle_opposite[self.halftriangle_opposite.len() - 2];
             let ind_tri_opp4 = self.halftriangle_opposite[self.halftriangle_opposite.len() - 1];
 
-            let [nod1, nod2, nod3, nod4] = self.get_tetrahedron(self.nb_tetrahedra - 1)?.nodes();
+            let [nod1, nod2, nod3, nod4] = self.tetrahedron(self.nb_tetrahedra - 1).nodes();
 
             let (ind_tri1, ind_tri2, ind_tri3, ind_tri4) =
                 self.replace_tetrahedron(ind_tetra, nod1, nod2, nod3, nod4);
@@ -514,10 +540,7 @@ impl SimplicialStructure3D {
     /// Println each triangle of the graph
     pub fn println(&self) -> () {
         for ind_tetra in 0..self.nb_tetrahedra {
-            let tetra = IterTetrahedron {
-                simplicial: self,
-                ind_tetrahedron: ind_tetra,
-            };
+            let tetra = self.tetrahedron(ind_tetra);
             print!("  ");
             tetra.println();
         }
