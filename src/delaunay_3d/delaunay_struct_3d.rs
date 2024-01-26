@@ -288,6 +288,18 @@ impl DelaunayStructure3D {
         None
     }
 
+    fn walk_check_all(&self, ind_vert: usize) -> Result<usize> {
+        for ind_tetra_cur in 0..self.get_simplicial().get_nb_tetrahedra() {
+            if self.is_tetrahedron_flat(ind_tetra_cur)? {
+                continue;
+            }
+            if self.is_vertex_in_sphere(ind_vert, ind_tetra_cur)? {
+                return Ok(ind_tetra_cur);
+            }
+        }
+        Err(anyhow::Error::msg("Could not find sphere containing point"))
+    }
+
     fn walk_by_visibility(
         &self,
         ind_vert: usize,
@@ -299,8 +311,14 @@ impl DelaunayStructure3D {
         let mut vec_tri: Vec<IterHalfTriangle> =
             start_tetra.halftriangles().iter().map(|&tri| tri).collect();
         let mut side = 0;
+        let mut nb_visited = 0;
+        let th_visited = self.get_simplicial().get_nb_tetrahedra() >> 2;
         loop {
+            if nb_visited > th_visited {
+                break Err(anyhow::Error::msg("Could not find sphere containing point"));
+            }
             if let Some(tri) = self.choose_tri(&vec_tri, &vert) {
+                nb_visited = nb_visited + 1;
                 let tri_opp = tri.opposite();
                 ind_tetra_cur = tri_opp.tetrahedron().ind();
                 vec_tri.clear();
@@ -310,7 +328,11 @@ impl DelaunayStructure3D {
                 vec_tri.push(hes[(2 + side) % 3].neighbor().triangle());
                 side = (side + 1) % 3;
             } else {
-                return Ok(ind_tetra_cur);
+                if self.is_vertex_in_sphere(ind_vert, ind_tetra_cur)? {
+                    break Ok(ind_tetra_cur);
+                } else {
+                    break Err(anyhow::Error::msg("Could not find sphere containing point"));
+                }
             }
         }
     }
@@ -337,7 +359,12 @@ impl DelaunayStructure3D {
 
     fn insert_vertex_helper(&mut self, ind_vertex: usize, near_to: usize) -> Result<usize> {
         let now = Instant::now();
-        let ind_tetrahedron = self.walk_by_visibility(ind_vertex, near_to)?;
+        let ind_tetrahedron = if let Ok(ind) = self.walk_by_visibility(ind_vertex, near_to) {
+            ind
+        } else {
+            self.simpl_struct.clean_to_rem()?;
+            self.walk_check_all(ind_vertex)?
+        };
         let duration = now.elapsed();
         let nano = duration.as_nanos();
         self.walk_ns = self.walk_ns + nano;
