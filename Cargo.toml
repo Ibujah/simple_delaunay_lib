@@ -1,6 +1,6 @@
 [package]
 name = "simple_delaunay_lib"
-version = "0.1.0"
+version = "0.2.0"
 edition = "2021"
 license = "MIT"
 description = "Implementation of 2D and 3D Delaunay algorithms in Rust"
